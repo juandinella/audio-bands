@@ -25,6 +25,7 @@ var AudioBands = class {
     this.musicData = null;
     this.micAnalyser = null;
     this.micData = null;
+    this.micWaveformData = null;
     this.audioEl = null;
     this.musicSource = null;
     this.micSource = null;
@@ -89,6 +90,7 @@ var AudioBands = class {
       analyser.smoothingTimeConstant = 0.8;
       this.micAnalyser = analyser;
       this.micData = new Uint8Array(analyser.frequencyBinCount);
+      this.micWaveformData = new Uint8Array(analyser.fftSize);
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
       this.micSource = source;
@@ -107,6 +109,7 @@ var AudioBands = class {
     this.micSource = null;
     this.micAnalyser = null;
     this.micData = null;
+    this.micWaveformData = null;
     this.callbacks.onMicStop?.();
   }
   // Call inside requestAnimationFrame to get current frequency data
@@ -131,10 +134,9 @@ var AudioBands = class {
   }
   // Call inside requestAnimationFrame to get raw time-domain waveform
   getWaveform() {
-    if (!this.micAnalyser) return null;
-    const data = new Uint8Array(this.micAnalyser.fftSize);
-    this.micAnalyser.getByteTimeDomainData(data);
-    return data;
+    if (!this.micAnalyser || !this.micWaveformData) return null;
+    this.micAnalyser.getByteTimeDomainData(this.micWaveformData);
+    return this.micWaveformData;
   }
   // Call when done — stops mic, closes AudioContext
   destroy() {

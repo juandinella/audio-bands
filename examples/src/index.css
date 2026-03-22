@@ -1,14 +1,16 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:      #0a0a0a;
-  --surface: #111111;
-  --border:  rgba(255, 255, 255, 0.07);
-  --text:    #e8e6df;
-  --muted:   rgba(232, 230, 223, 0.6);
-  --accent:  #c8f080;
-  --serif:   'Instrument Serif', Georgia, serif;
-  --mono:    'DM Mono', monospace;
+  --bg:          #0a0a0a;
+  --surface:     #111111;
+  --border:      rgba(255, 255, 255, 0.07);
+  --text:        #e8e6df;
+  --muted:       rgba(232, 230, 223, 0.6);
+  --accent:      #c8f080;  /* primary accent — music / active states */
+  --accent-2:    #f080c8;  /* secondary accent — mic / live input */
+  --accent-tint: rgba(200, 240, 128, 0.06); /* accent-tinted surface */
+  --error:       #f08080;  /* error state */
+  --mono:        'DM Mono', monospace;
 }
 
 html, body, #root {
@@ -28,4 +30,29 @@ html, body, #root {
 
 button, select, a, [role="button"] {
   cursor: pointer;
+}
+
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.header-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  transition: color 0.15s;
+}
+
+.header-link:hover {
+  color: var(--text);
 }

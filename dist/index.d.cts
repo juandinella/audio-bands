@@ -26,6 +26,7 @@ declare class AudioBands {
     private musicData;
     private micAnalyser;
     private micData;
+    private micWaveformData;
     private audioEl;
     private musicSource;
     private micSource;
