@@ -228,7 +228,6 @@ export default function App() {
         const cy = h / 2;
         const baseR = Math.min(w, h) * 0.22;
         const N = 64;
-        const bands = fft ? logBands(fft, LOG_RANGES_64) : EMPTY_64;
 
         // glow
         const glowR = baseR * (1.3 + music.bass * 0.7);
@@ -240,15 +239,21 @@ export default function App() {
         ctx.arc(cx, cy, glowR * 1.8, 0, Math.PI * 2);
         ctx.fill();
 
-        // blob — smooth closed curve using midpoint beziers
-        // Start from bottom (π/2) so low-frequency bins are at the bottom.
-        // logSample gives unique interpolated values even for nearby low-end bins.
+        // blob — harmonic deformation approach:
+        // Modulate the radius with sine/cosine harmonics weighted by bass/mid/high.
+        // This avoids the "dead bin" concavity that appears when mapping FFT bins
+        // directly to angles (low-frequency bins near 0 would create a dent).
         const pts: { x: number; y: number }[] = [];
         for (let i = 0; i < N; i++) {
-          const angle = (i / N) * Math.PI * 2 + Math.PI / 2;
-          const v = fft ? logSample(fft, i, N) : 0;
-          const wobble = Math.sin(angle * 4 + t * 1.5) * music.mid * 0.08;
-          const r = baseR * (0.82 + music.overall * 0.08 + v * 0.5 + wobble);
+          const angle = (i / N) * Math.PI * 2;
+          const r = baseR * (
+            0.72
+            + music.overall * 0.18
+            + Math.sin(angle * 2 + t * 0.8)  * music.bass * 0.18
+            + Math.cos(angle * 3 - t * 0.5)  * music.mid  * 0.13
+            + Math.sin(angle * 5 + t * 1.2)  * music.high * 0.09
+            + Math.cos(angle * 7 + t * 0.35) * music.overall * 0.05
+          );
           pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
         }
         ctx.beginPath();

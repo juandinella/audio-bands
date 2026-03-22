@@ -1,6 +1,6 @@
 {
   "name": "@juandinella/audio-bands",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless React hook for real-time audio frequency analysis. Get bass/mid/high bands from music or mic, without a renderer.",
   "keywords": [
     "react",
