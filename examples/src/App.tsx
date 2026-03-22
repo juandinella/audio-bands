@@ -1,6 +1,50 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAudioBands } from '@juandinella/audio-bands';
 
+// ── Pre-computed log band index ranges ──────────────────────────────────────
+// Computed once at module load instead of every animation frame.
+// FFT bin count is fixed at 128 (fftSize 256 / 2).
+const FFT_BIN_COUNT = 128;
+
+function buildLogRanges(bins: number, n: number): Array<[number, number]> {
+  return Array.from({ length: n }, (_, b) => [
+    Math.floor(Math.pow(bins, b / n)),
+    Math.floor(Math.pow(bins, (b + 1) / n)),
+  ] as [number, number]);
+}
+
+const LOG_RANGES_64  = buildLogRanges(FFT_BIN_COUNT, 64);
+const LOG_RANGES_128 = buildLogRanges(FFT_BIN_COUNT, 128);
+
+// Group FFT bins into logarithmically-spaced bands using pre-computed ranges.
+function logBands(fft: Uint8Array<ArrayBuffer>, ranges: Array<[number, number]>): number[] {
+  const bins = fft.length;
+  return ranges.map(([start, end]) => {
+    let sum = 0, count = 0;
+    for (let i = start; i <= end && i < bins; i++) { sum += fft[i]; count++; }
+    return count > 0 ? sum / count / 255 : 0;
+  });
+}
+
+// Compute band averages directly from an already-fetched FFT buffer,
+// avoiding a second getByteFrequencyData call in the same frame.
+function bandsFromFft(fft: Uint8Array<ArrayBuffer>) {
+  const len = fft.length;
+  let bSum = 0, mSum = 0, hSum = 0;
+  const bEnd = Math.floor(len * 0.08);
+  const mEnd = Math.floor(len * 0.4);
+  for (let i = 0;    i < bEnd; i++) bSum += fft[i];
+  for (let i = bEnd; i < mEnd; i++) mSum += fft[i];
+  for (let i = mEnd; i < len;  i++) hSum += fft[i];
+  const bass = bSum / bEnd / 255;
+  const mid  = mSum / (mEnd - bEnd) / 255;
+  const high = hSum / (len - mEnd) / 255;
+  return { bass, mid, high, overall: bass * 0.5 + mid * 0.3 + high * 0.2 };
+}
+
+const ZERO_BANDS = { bass: 0, mid: 0, high: 0, overall: 0 };
+const EMPTY_128: number[] = new Array(128).fill(0);
+
 const TRACKS = [
   { name: 'Sabre Dance', composer: 'Marty Paich Piano Quartet', url: 'https://dn721903.ca.archive.org/0/items/JV-38892-1960-QmZBx4kf9ahTkoVGdbQjamPmiwCNq4EGdgJZGdn1Uq6Y3B.mp3/DW524439.mp3' },
   { name: 'Gymnopédie No.1', composer: 'Erik Satie', url: '/audio/gymnopedie-1.ogg' },
@@ -24,6 +68,7 @@ export default function App() {
   const [currentTrack, setCurrentTrack] = useState(0);
   const [viz, setViz] = useState<Viz>('bars');
   const [copied, setCopied] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText('npm install @juandinella/audio-bands');
@@ -33,12 +78,8 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
 
-  // Lissajous trail buffer
-  const trailRef = useRef<{ x: number; y: number }[]>([]);
-
-  useEffect(() => {
-    trailRef.current = [];
-  }, [viz]);
+  // Cached bar gradient — recreated only when canvas height changes
+  const barGradRef = useRef<{ h: number; grad: CanvasGradient | null }>({ h: 0, grad: null });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -49,22 +90,17 @@ export default function App() {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = canvas.offsetWidth * dpr;
       canvas.height = canvas.offsetHeight * dpr;
+      barGradRef.current.grad = null; // invalidate cached gradient on resize
     }
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Group FFT bins into N logarithmically-spaced bands
-    function logBands(fft: Uint8Array<ArrayBuffer>, n: number): number[] {
-      const bins = fft.length;
-      return Array.from({ length: n }, (_, b) => {
-        const start = Math.floor(Math.pow(bins, b / n));
-        const end = Math.floor(Math.pow(bins, (b + 1) / n));
-        let sum = 0, count = 0;
-        for (let i = start; i <= end && i < bins; i++) { sum += fft[i]; count++; }
-        return count > 0 ? sum / count / 255 : 0;
-      });
-    }
+    // Read design tokens from CSS custom properties — keeps canvas colours
+    // in sync with the design system without hardcoding hex values here.
+    const cssVars = getComputedStyle(document.documentElement);
+    const accent = cssVars.getPropertyValue('--accent').trim();
+    const pink   = cssVars.getPropertyValue('--accent-2').trim();
 
     function loop() {
       if (!canvas) return;
@@ -72,14 +108,23 @@ export default function App() {
       const w = canvas.width;
       const h = canvas.height;
       const dpr = window.devicePixelRatio || 1;
-      const music = getBands('music');
-      const mic = getBands('mic');
-      const fft = getFftData('music');
-      const fftMic = getFftData('mic');
-      const waveform = getWaveform();
-      const accent = '#c8f080';
-      const pink = '#f080c8';
       const t = Date.now() / 1000;
+
+      // Fetch only what the active visualization needs — avoids redundant
+      // getByteFrequencyData calls for data the current viz won't use.
+      const needsFft  = viz === 'bars' || viz === 'spectrum' || viz === 'blob';
+      const needsMic  = micActive && (viz === 'bars' || viz === 'spectrum');
+      const fft       = needsFft ? getFftData('music') : null;
+      const fftMic    = needsMic ? getFftData('mic') : null;
+      // For blob, derive bands from the already-fetched fft (no second read).
+      // For lissajous, call getBands directly (no fft needed).
+      const music = viz === 'lissajous'
+        ? getBands('music')
+        : (fft ? bandsFromFft(fft) : ZERO_BANDS);
+      const mic = micActive && (viz === 'blob' || viz === 'lissajous')
+        ? getBands('mic')
+        : ZERO_BANDS;
+      const waveform = (viz === 'blob' && micActive) ? getWaveform() : null;
 
       ctx.clearRect(0, 0, w, h);
 
@@ -87,25 +132,34 @@ export default function App() {
         // ── Logarithmic bands ─────────────────────────────────────
         if (!fft) { rafRef.current = requestAnimationFrame(loop); return; }
         const N = 64;
-        const musicBands = logBands(fft, N);
-        const micBands = fftMic && micActive ? logBands(fftMic, N) : null;
+        const musicBands = logBands(fft, LOG_RANGES_64);
+        const micBands = fftMic ? logBands(fftMic, LOG_RANGES_64) : null;
         const gap = 2 * dpr;
         const barW = (w - gap * (N - 1)) / N;
         const labelH = 20 * dpr;
         const maxH = h - labelH;
 
+        // Cache the gradient — recreate only when canvas height changes
+        if (barGradRef.current.h !== maxH || !barGradRef.current.grad) {
+          const grad = ctx.createLinearGradient(0, 0, 0, maxH);
+          grad.addColorStop(0,    accent);
+          grad.addColorStop(0.6,  accent + '99');
+          grad.addColorStop(1,    accent + '22');
+          barGradRef.current = { h: maxH, grad };
+        }
+        ctx.fillStyle = barGradRef.current.grad!;
+
         for (let i = 0; i < N; i++) {
           const x = i * (barW + gap);
           const musicH = Math.max(2 * dpr, musicBands[i] * maxH);
-          const grad = ctx.createLinearGradient(0, maxH - musicH, 0, maxH);
-          grad.addColorStop(0, accent);
-          grad.addColorStop(1, accent + '33');
-          ctx.fillStyle = grad;
           ctx.fillRect(x, maxH - musicH, barW, musicH);
+        }
 
-          if (micBands) {
+        if (micBands) {
+          ctx.fillStyle = pink + '88';
+          for (let i = 0; i < N; i++) {
+            const x = i * (barW + gap);
             const micH = Math.max(2 * dpr, micBands[i] * maxH);
-            ctx.fillStyle = pink + '88';
             ctx.fillRect(x, maxH - micH, barW, micH);
           }
         }
@@ -120,8 +174,8 @@ export default function App() {
         // ── Log-scaled smooth area ────────────────────────────────
         if (!fft) { rafRef.current = requestAnimationFrame(loop); return; }
         const N = 128;
-        const musicBands = logBands(fft, N);
-        const micBands = fftMic && micActive ? logBands(fftMic, N) : null;
+        const musicBands = logBands(fft, LOG_RANGES_128);
+        const micBands = fftMic ? logBands(fftMic, LOG_RANGES_128) : null;
         const step = w / (N - 1);
 
         const drawArea = (bands: number[], color: string, fill: boolean) => {
@@ -162,7 +216,7 @@ export default function App() {
         const cy = h / 2;
         const baseR = Math.min(w, h) * 0.22;
         const N = 128;
-        const bands = fft ? logBands(fft, N) : Array(N).fill(0);
+        const bands = fft ? logBands(fft, LOG_RANGES_128) : EMPTY_128;
 
         // glow
         const glowR = baseR * (1.3 + music.bass * 0.7);
@@ -240,7 +294,7 @@ export default function App() {
         ctx.stroke();
         ctx.globalAlpha = 1;
 
-        // trail
+        // dot at current parametric position
         const x = cx + Math.sin(freqX * (t * 0.3 % (Math.PI * 2)) + phase) * rx * (0.5 + music.overall * 0.5);
         const y = cy + Math.sin(freqY * (t * 0.3 % (Math.PI * 2)) + micPhase) * ry * (0.5 + music.overall * 0.5);
         ctx.beginPath();
@@ -261,10 +315,16 @@ export default function App() {
 
   async function handleTrack(i: number) {
     setCurrentTrack(i);
-    await loadTrack(TRACKS[i].url);
+    setIsLoading(true);
+    try {
+      await loadTrack(TRACKS[i].url);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handlePlay() {
+    if (isLoading) return;
     if (isPlaying) togglePlayPause();
     else handleTrack(currentTrack);
   }
@@ -273,7 +333,7 @@ export default function App() {
     <div style={s.page}>
       <header style={s.header}>
         <span style={s.pkg}>@juandinella/audio-bands</span>
-        <a href="https://github.com/juandinella/audio-bands" target="_blank" rel="noreferrer" style={s.link}>
+        <a href="https://github.com/juandinella/audio-bands" target="_blank" rel="noreferrer" className="header-link">
           github →
         </a>
       </header>
@@ -288,7 +348,7 @@ export default function App() {
 
         <div style={s.installWrap}>
           <code style={s.installCode}>npm install @juandinella/audio-bands</code>
-          <button style={s.copyBtn} onClick={handleCopy}>
+          <button style={s.copyBtn} onClick={handleCopy} aria-label={copied ? 'Copied' : 'Copy install command'}>
             {copied ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="1.5,6 4.5,9 10.5,3" />
@@ -316,12 +376,18 @@ export default function App() {
         </div>
 
         {/* Canvas */}
-        <canvas ref={canvasRef} style={s.canvas} />
+        <canvas ref={canvasRef} style={s.canvas} role="img" aria-label={`${viz} audio frequency visualization`} />
 
         {/* Controls */}
         <div style={s.controls}>
-          <button style={s.btnPlay} onClick={handlePlay}>
-            {isPlaying ? 'pause' : 'play'}
+          <button
+            style={{ ...s.btnPlay, opacity: isLoading ? 0.5 : 1 }}
+            onClick={handlePlay}
+            aria-pressed={isPlaying}
+            aria-label={isLoading ? 'loading' : isPlaying ? 'pause' : 'play'}
+            disabled={isLoading}
+          >
+            {isLoading ? 'loading…' : isPlaying ? 'pause' : 'play'}
           </button>
 
           <div style={s.selectWrap}>
@@ -340,12 +406,21 @@ export default function App() {
           </div>
 
           <button
-            style={{ ...s.btnMic, color: micActive ? '#f080c8' : 'var(--muted)' }}
+            style={{ ...s.btnMic, color: micActive ? 'var(--accent-2)' : 'var(--muted)' }}
             onClick={toggleMic}
+            aria-pressed={micActive}
+            aria-label={micActive ? 'disable microphone' : 'enable microphone'}
           >
             {micActive ? 'mic on' : 'mic'}
           </button>
         </div>
+
+        {/* Error state */}
+        {audioError && (
+          <div style={s.errorMsg} role="alert">
+            failed to load track — check your connection and try again
+          </div>
+        )}
 
         {/* Snippet */}
         <div style={s.snippetWrap}>
@@ -388,7 +463,6 @@ const s: Record<string, React.CSSProperties> = {
     padding: '16px 24px', borderBottom: '1px solid var(--border)',
   },
   pkg: { fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em', color: 'var(--muted)' },
-  link: { fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted)', textDecoration: 'none', letterSpacing: '0.06em' },
   main: {
     flex: 1, maxWidth: 640, margin: '0 auto', width: '100%',
     padding: '64px 24px', display: 'flex', flexDirection: 'column', gap: 24,
@@ -397,15 +471,16 @@ const s: Record<string, React.CSSProperties> = {
   hi: { color: 'var(--accent)' },
   installWrap: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'rgba(200,240,128,0.06)', border: '1px solid var(--border)',
+    background: 'var(--accent-tint)', border: '1px solid var(--border)',
     padding: '10px 16px',
   },
   installCode: {
     fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)',
   },
   copyBtn: {
-    background: 'transparent', border: 'none', padding: 4,
-    color: 'var(--muted)', display: 'flex', alignItems: 'center',
+    background: 'transparent', border: 'none', padding: '10px 12px',
+    minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: 'var(--muted)',
     transition: 'color 0.15s',
   },
 
@@ -447,13 +522,18 @@ const s: Record<string, React.CSSProperties> = {
   snippetHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '8px 16px', borderBottom: '1px solid var(--border)',
-    background: 'rgba(255,255,255,0.02)',
+    background: 'var(--surface)',
   },
-  snippetLabel: { fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'var(--muted)', opacity: 0.5 },
-  snippetFile: { fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', opacity: 0.4 },
+  snippetLabel: { fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'rgba(232,230,223,0.45)' },
+  snippetFile: { fontFamily: 'var(--mono)', fontSize: 10, color: 'rgba(232,230,223,0.4)' },
   snippet: { fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.8, padding: '20px 24px', whiteSpace: 'pre' as const, overflowX: 'auto' as const, margin: 0 },
   cText: { color: 'var(--text)' },
   cMuted: { color: 'var(--muted)' },
   cAccent: { color: 'var(--accent)' },
-  cComment: { color: 'rgba(232,230,223,0.25)', fontStyle: 'italic' as const },
+  cComment: { color: 'rgba(232,230,223,0.45)', fontStyle: 'italic' as const },
+  errorMsg: {
+    fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.04em',
+    color: 'var(--error)', padding: '10px 16px',
+    border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
+  },
 };

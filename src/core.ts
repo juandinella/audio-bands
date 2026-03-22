@@ -36,6 +36,7 @@ export class AudioBands {
   private musicData: Uint8Array<ArrayBuffer> | null = null;
   private micAnalyser: AnalyserNode | null = null;
   private micData: Uint8Array<ArrayBuffer> | null = null;
+  private micWaveformData: Uint8Array<ArrayBuffer> | null = null;
   private audioEl: HTMLAudioElement | null = null;
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
@@ -71,7 +72,7 @@ export class AudioBands {
 
     this.audioEl?.pause();
     if (this.audioEl) this.audioEl.src = '';
-    try { this.musicSource?.disconnect(); } catch {}
+    try { this.musicSource?.disconnect(); } catch { /* already disconnected */ }
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -115,6 +116,7 @@ export class AudioBands {
       analyser.smoothingTimeConstant = 0.8;
       this.micAnalyser = analyser;
       this.micData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+      this.micWaveformData = new Uint8Array(analyser.fftSize) as Uint8Array<ArrayBuffer>;
 
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -130,10 +132,11 @@ export class AudioBands {
   disableMic(): void {
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.micStream = null;
-    try { this.micSource?.disconnect(); } catch {}
+    try { this.micSource?.disconnect(); } catch { /* already disconnected */ }
     this.micSource = null;
     this.micAnalyser = null;
     this.micData = null;
+    this.micWaveformData = null;
     this.callbacks.onMicStop?.();
   }
 
@@ -161,10 +164,9 @@ export class AudioBands {
 
   // Call inside requestAnimationFrame to get raw time-domain waveform
   getWaveform(): Uint8Array<ArrayBuffer> | null {
-    if (!this.micAnalyser) return null;
-    const data = new Uint8Array(this.micAnalyser.fftSize) as Uint8Array<ArrayBuffer>;
-    this.micAnalyser.getByteTimeDomainData(data);
-    return data;
+    if (!this.micAnalyser || !this.micWaveformData) return null;
+    this.micAnalyser.getByteTimeDomainData(this.micWaveformData);
+    return this.micWaveformData;
   }
 
   // Call when done — stops mic, closes AudioContext
