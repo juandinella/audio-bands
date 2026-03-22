@@ -5,6 +5,9 @@ Headless audio frequency analysis for the browser. Get real-time `bass`, `mid`, 
 ```ts
 const { bass, mid, high } = audio.getBands();
 // bass: 0.73, mid: 0.41, high: 0.12
+
+const fft = audio.getFftData();
+// Uint8Array(128) — raw frequency bins, 0–255 each
 ```
 
 ## Why
@@ -42,6 +45,8 @@ await audio.load('/track.mp3');
 function loop() {
   const { bass, mid, high, overall } = audio.getBands();
   // drive your canvas, SVG, CSS, WebGL — whatever
+
+  const fft = audio.getFftData(); // raw bins for spectrum visualizations
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -125,6 +130,7 @@ new AudioBands(callbacks?: AudioBandsCallbacks)
 | `enableMic()` | Request mic access and start analysis. |
 | `disableMic()` | Stop mic stream and clean up. |
 | `getBands(source?)` | Returns `Bands` for `'music'` (default) or `'mic'`. Call inside RAF. |
+| `getFftData(source?)` | Returns raw `Uint8Array` of frequency bins (0–255) for `'music'` or `'mic'`. Call inside RAF. |
 | `getWaveform()` | Returns raw time-domain `Uint8Array` from mic. Call inside RAF. |
 | `destroy()` | Stop playback, release mic, close AudioContext. |
 
@@ -141,6 +147,7 @@ const {
   togglePlayPause,
   toggleMic,
   getBands,
+  getFftData,
   getWaveform,
 } = useAudioBands();
 ```
@@ -172,7 +179,8 @@ type AudioBandsCallbacks = {
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()` — this respects browser autoplay policy, which requires a user gesture before audio can start.
 - The mic analyser is **not** connected to `AudioContext.destination`, so there is no feedback loop.
-- `getBands()` and `getWaveform()` read live data from the audio graph — call them inside `requestAnimationFrame`, not in response to React state.
+- `getBands()`, `getFftData()`, and `getWaveform()` read live data from the audio graph — call them inside `requestAnimationFrame`, not in response to React state.
+- `getFftData()` returns the same underlying buffer on every call — copy it if you need to compare frames (`Array.from(fft)`).
 
 ## License
 

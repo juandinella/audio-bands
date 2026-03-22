@@ -12,6 +12,7 @@ export type UseAudioBandsReturn = {
   togglePlayPause: () => void;
   toggleMic: () => Promise<void>;
   getBands: (source?: AudioSource) => Bands;
+  getFftData: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
   getWaveform: () => Uint8Array<ArrayBuffer> | null;
 };
 
@@ -61,6 +62,10 @@ export function useAudioBands(): UseAudioBandsReturn {
     return instance.current!.getBands(source);
   }, []);
 
+  const getFftData = useCallback((source?: AudioSource) => {
+    return instance.current!.getFftData(source);
+  }, []);
+
   const getWaveform = useCallback(() => {
     return instance.current!.getWaveform();
   }, []);
@@ -73,6 +78,7 @@ export function useAudioBands(): UseAudioBandsReturn {
     togglePlayPause,
     toggleMic,
     getBands,
+    getFftData,
     getWaveform,
   };
 }

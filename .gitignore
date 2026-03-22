@@ -21,6 +21,10 @@
 /build
 /dist
 
+# examples build artifacts
+examples/dist
+examples/node_modules
+
 # misc
 .DS_Store
 *.pem

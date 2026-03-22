@@ -147,6 +147,18 @@ export class AudioBands {
     return computeBands(this.musicAnalyser, this.musicData);
   }
 
+  // Call inside requestAnimationFrame to get raw FFT frequency bins (0–255 per bin)
+  getFftData(source: AudioSource = 'music'): Uint8Array<ArrayBuffer> | null {
+    if (source === 'mic') {
+      if (!this.micAnalyser || !this.micData) return null;
+      this.micAnalyser.getByteFrequencyData(this.micData);
+      return this.micData;
+    }
+    if (!this.musicAnalyser || !this.musicData) return null;
+    this.musicAnalyser.getByteFrequencyData(this.musicData);
+    return this.musicData;
+  }
+
   // Call inside requestAnimationFrame to get raw time-domain waveform
   getWaveform(): Uint8Array<ArrayBuffer> | null {
     if (!this.micAnalyser) return null;

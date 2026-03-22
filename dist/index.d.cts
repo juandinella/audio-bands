@@ -37,6 +37,7 @@ declare class AudioBands {
     enableMic(): Promise<void>;
     disableMic(): void;
     getBands(source?: AudioSource): Bands;
+    getFftData(source?: AudioSource): Uint8Array<ArrayBuffer> | null;
     getWaveform(): Uint8Array<ArrayBuffer> | null;
     destroy(): void;
 }
@@ -49,6 +50,7 @@ type UseAudioBandsReturn = {
     togglePlayPause: () => void;
     toggleMic: () => Promise<void>;
     getBands: (source?: AudioSource) => Bands;
+    getFftData: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
     getWaveform: () => Uint8Array<ArrayBuffer> | null;
 };
 /**
