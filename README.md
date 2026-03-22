@@ -1,6 +1,6 @@
 # audio-bands
 
-Headless audio frequency analysis for the browser. Get real-time `bass`, `mid`, and `high` values normalized to `0–1` — from a music track, a microphone, or both simultaneously. No renderer included: you decide what to do with the numbers.
+Headless audio frequency analysis for the browser. Get real-time `bass`, `mid`, and `high` values normalized to `0–1` from a music track, a microphone, or both at the same time. No renderer included.
 
 ```ts
 const { bass, mid, high } = audio.getBands();
@@ -12,12 +12,12 @@ const fft = audio.getFftData();
 
 ## Why
 
-Every audio visualization library either handles only playback (no analysis) or draws its own canvas and hides the data. This library only gives you numbers — what you render is up to you.
+Every audio visualization library either handles only playback (no analysis) or draws its own canvas and hides the data. This one only gives you numbers.
 
 ## Install
 
 ```bash
-npm install audio-bands
+npm install @juandinella/audio-bands
 ```
 
 React is an optional peer dependency. The core class works in any framework or plain HTML.
@@ -29,7 +29,7 @@ React is an optional peer dependency. The core class works in any framework or p
 Works in Vue, Svelte, plain HTML — anything.
 
 ```js
-import { AudioBands } from 'audio-bands';
+import { AudioBands } from '@juandinella/audio-bands';
 
 const audio = new AudioBands({
   onPlay: () => console.log('playing'),
@@ -58,7 +58,7 @@ audio.destroy();
 ### React hook
 
 ```tsx
-import { useAudioBands } from 'audio-bands';
+import { useAudioBands } from '@juandinella/audio-bands';
 import { useEffect, useRef } from 'react';
 
 function Visualizer() {
@@ -177,10 +177,10 @@ type AudioBandsCallbacks = {
 
 ## Notes
 
-- `AudioContext` is created lazily on the first call to `load()` or `enableMic()` — this respects browser autoplay policy, which requires a user gesture before audio can start.
+- `AudioContext` is created lazily on the first call to `load()` or `enableMic()`. Browsers require a user gesture before audio can start.
 - The mic analyser is **not** connected to `AudioContext.destination`, so there is no feedback loop.
-- `getBands()`, `getFftData()`, and `getWaveform()` read live data from the audio graph — call them inside `requestAnimationFrame`, not in response to React state.
-- `getFftData()` returns the same underlying buffer on every call — copy it if you need to compare frames (`Array.from(fft)`).
+- `getBands()`, `getFftData()`, and `getWaveform()` read live data from the audio graph. Call them inside `requestAnimationFrame`, not in response to React state.
+- `getFftData()` returns the same underlying buffer on every call. Copy it if you need to compare frames: `Array.from(fft)`.
 
 ## License
 

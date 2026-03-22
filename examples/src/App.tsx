@@ -17,6 +17,7 @@ const LOG_RANGES_64  = buildLogRanges(FFT_BIN_COUNT, 64);
 const LOG_RANGES_128 = buildLogRanges(FFT_BIN_COUNT, 128);
 
 // Group FFT bins into logarithmically-spaced bands using pre-computed ranges.
+// Used for bars (discrete bars can share bins without issue).
 function logBands(fft: Uint8Array<ArrayBuffer>, ranges: Array<[number, number]>): number[] {
   const bins = fft.length;
   return ranges.map(([start, end]) => {
@@ -24,6 +25,16 @@ function logBands(fft: Uint8Array<ArrayBuffer>, ranges: Array<[number, number]>)
     for (let i = start; i <= end && i < bins; i++) { sum += fft[i]; count++; }
     return count > 0 ? sum / count / 255 : 0;
   });
+}
+
+// Continuous log-interpolated sample — avoids the "same bin" artifact that
+// logBands produces when many bands map to identical low-end bins.
+// i: sample index (0..n-1), n: total samples, fft: frequency data.
+function logSample(fft: Uint8Array<ArrayBuffer>, i: number, n: number): number {
+  const binF = Math.pow(fft.length, (i + 0.5) / n);
+  const b0 = Math.floor(binF);
+  const b1 = Math.min(b0 + 1, fft.length - 1);
+  return (fft[b0] * (1 - (binF - b0)) + fft[b1] * (binF - b0)) / 255;
 }
 
 // Compute band averages directly from an already-fetched FFT buffer,
@@ -43,6 +54,7 @@ function bandsFromFft(fft: Uint8Array<ArrayBuffer>) {
 }
 
 const ZERO_BANDS = { bass: 0, mid: 0, high: 0, overall: 0 };
+const EMPTY_64: number[] = new Array(64).fill(0);
 const EMPTY_128: number[] = new Array(128).fill(0);
 
 const TRACKS = [
@@ -173,9 +185,9 @@ export default function App() {
       } else if (viz === 'spectrum') {
         // ── Log-scaled smooth area ────────────────────────────────
         if (!fft) { rafRef.current = requestAnimationFrame(loop); return; }
-        const N = 128;
-        const musicBands = logBands(fft, LOG_RANGES_128);
-        const micBands = fftMic ? logBands(fftMic, LOG_RANGES_128) : null;
+        const N = 64;
+        const musicBands = Array.from({ length: N }, (_, i) => logSample(fft, i, N));
+        const micBands = fftMic ? Array.from({ length: N }, (_, i) => logSample(fftMic, i, N)) : null;
         const step = w / (N - 1);
 
         const drawArea = (bands: number[], color: string, fill: boolean) => {
@@ -215,8 +227,8 @@ export default function App() {
         const cx = w / 2;
         const cy = h / 2;
         const baseR = Math.min(w, h) * 0.22;
-        const N = 128;
-        const bands = fft ? logBands(fft, LOG_RANGES_128) : EMPTY_128;
+        const N = 64;
+        const bands = fft ? logBands(fft, LOG_RANGES_64) : EMPTY_64;
 
         // glow
         const glowR = baseR * (1.3 + music.bass * 0.7);
@@ -228,16 +240,24 @@ export default function App() {
         ctx.arc(cx, cy, glowR * 1.8, 0, Math.PI * 2);
         ctx.fill();
 
-        // blob — each angle uses its log band
+        // blob — smooth closed curve using midpoint beziers
+        // Start from bottom (π/2) so low-frequency bins are at the bottom.
+        // logSample gives unique interpolated values even for nearby low-end bins.
+        const pts: { x: number; y: number }[] = [];
+        for (let i = 0; i < N; i++) {
+          const angle = (i / N) * Math.PI * 2 + Math.PI / 2;
+          const v = fft ? logSample(fft, i, N) : 0;
+          const wobble = Math.sin(angle * 4 + t * 1.5) * music.mid * 0.08;
+          const r = baseR * (0.82 + music.overall * 0.08 + v * 0.5 + wobble);
+          pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
+        }
         ctx.beginPath();
-        for (let i = 0; i <= N; i++) {
-          const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
-          const v = bands[i % N];
-          const wobble = Math.sin(angle * 4 + t * 1.5) * music.mid * 0.12;
-          const r = baseR * (0.75 + v * 0.7 + wobble);
-          const x = cx + Math.cos(angle) * r;
-          const y = cy + Math.sin(angle) * r;
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        ctx.moveTo((pts[0].x + pts[N - 1].x) / 2, (pts[0].y + pts[N - 1].y) / 2);
+        for (let i = 0; i < N; i++) {
+          const next = pts[(i + 1) % N];
+          const mx = (pts[i].x + next.x) / 2;
+          const my = (pts[i].y + next.y) / 2;
+          ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
         }
         ctx.closePath();
         const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.6);
