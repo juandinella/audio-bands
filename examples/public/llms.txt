@@ -1,0 +1,61 @@
+# @juandinella/audio-bands
+
+Headless audio frequency analysis library for the browser. Returns real-time `bass`, `mid`, and `high` values normalized to 0–1 from a music track or microphone — simultaneously. No renderer included.
+
+## Install
+
+```bash
+npm install @juandinella/audio-bands
+```
+
+## What it solves
+
+Most audio visualization libraries either handle only playback with no analysis, or draw their own canvas and hide the data. This library only gives you numbers — what you render is up to you.
+
+## Vanilla JS
+
+```js
+import { AudioBands } from '@juandinella/audio-bands';
+
+const audio = new AudioBands({ onPlay: () => {}, onError: () => {} });
+await audio.load('/track.mp3');
+
+function loop() {
+  const { bass, mid, high, overall } = audio.getBands();
+  const fft = audio.getFftData(); // Uint8Array(128) — raw frequency bins
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+audio.destroy(); // clean up when done
+```
+
+## React hook
+
+```tsx
+import { useAudioBands } from '@juandinella/audio-bands';
+
+const { loadTrack, getBands, getFftData, getWaveform, isPlaying, micActive, audioError } = useAudioBands();
+
+// Call getBands / getFftData / getWaveform inside requestAnimationFrame, not in React state
+```
+
+## Key API
+
+- `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
+- `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
+- `getWaveform()` — returns time-domain waveform from mic as `Uint8Array`
+- `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
+- `destroy()` — closes AudioContext and stops mic stream
+
+## Notes
+
+- `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
+- Works in React, Vue, Svelte, or plain HTML
+- React is an optional peer dependency
+
+## Links
+
+- npm: https://www.npmjs.com/package/@juandinella/audio-bands
+- GitHub: https://github.com/juandinella/audio-bands
+- Demo: https://audio-bands.juandinella.com
