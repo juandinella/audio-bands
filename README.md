@@ -1,5 +1,7 @@
 # audio-bands
 
+[![npm](https://img.shields.io/npm/v/@juandinella/audio-bands)](https://www.npmjs.com/package/@juandinella/audio-bands)
+
 **Demo**: [audio-bands.juandinella.com](https://audio-bands.juandinella.com)
 
 Headless audio frequency analysis for the browser. Get real-time `bass`, `mid`, and `high` values normalized to `0–1` from a music track, a microphone, or both at the same time. No renderer included.
