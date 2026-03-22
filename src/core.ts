@@ -8,7 +8,10 @@ function avg(arr: Uint8Array<ArrayBuffer>, from: number, to: number): number {
   return sum / (to - from);
 }
 
-function computeBands(analyser: AnalyserNode, data: Uint8Array<ArrayBuffer>): Bands {
+function computeBands(
+  analyser: AnalyserNode,
+  data: Uint8Array<ArrayBuffer>,
+): Bands {
   analyser.getByteFrequencyData(data);
   const len = data.length;
   const bass = avg(data, 0, Math.floor(len * 0.08));
@@ -52,7 +55,8 @@ export class AudioBands {
 
     const Ctx =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
 
     const ctx = new Ctx();
     const analyser = ctx.createAnalyser();
@@ -62,7 +66,9 @@ export class AudioBands {
 
     this.ctx = ctx;
     this.musicAnalyser = analyser;
-    this.musicData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+    this.musicData = new Uint8Array(
+      analyser.frequencyBinCount,
+    ) as Uint8Array<ArrayBuffer>;
 
     return ctx;
   }
@@ -72,7 +78,11 @@ export class AudioBands {
 
     this.audioEl?.pause();
     if (this.audioEl) this.audioEl.src = '';
-    try { this.musicSource?.disconnect(); } catch { /* already disconnected */ }
+    try {
+      this.musicSource?.disconnect();
+    } catch {
+      /* already disconnected */
+    }
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -108,15 +118,22 @@ export class AudioBands {
     const ctx = this.ensureCtx();
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
       this.micStream = stream;
 
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.8;
       this.micAnalyser = analyser;
-      this.micData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
-      this.micWaveformData = new Uint8Array(analyser.fftSize) as Uint8Array<ArrayBuffer>;
+      this.micData = new Uint8Array(
+        analyser.frequencyBinCount,
+      ) as Uint8Array<ArrayBuffer>;
+      this.micWaveformData = new Uint8Array(
+        analyser.fftSize,
+      ) as Uint8Array<ArrayBuffer>;
 
       const source = ctx.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -132,7 +149,11 @@ export class AudioBands {
   disableMic(): void {
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.micStream = null;
-    try { this.micSource?.disconnect(); } catch { /* already disconnected */ }
+    try {
+      this.micSource?.disconnect();
+    } catch {
+      /* already disconnected */
+    }
     this.micSource = null;
     this.micAnalyser = null;
     this.micData = null;

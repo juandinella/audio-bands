@@ -66,7 +66,8 @@ import { useAudioBands } from '@juandinella/audio-bands';
 import { useEffect, useRef } from 'react';
 
 function Visualizer() {
-  const { loadTrack, togglePlayPause, toggleMic, getBands, isPlaying } = useAudioBands();
+  const { loadTrack, togglePlayPause, toggleMic, getBands, isPlaying } =
+    useAudioBands();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -83,7 +84,13 @@ function Visualizer() {
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.beginPath();
-      ctx.arc(canvas.width / 2, canvas.height / 2, 20 + bass * 80, 0, Math.PI * 2);
+      ctx.arc(
+        canvas.width / 2,
+        canvas.height / 2,
+        20 + bass * 80,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
 
       raf = requestAnimationFrame(loop);
@@ -127,16 +134,16 @@ audio.disableMic();
 new AudioBands(callbacks?: AudioBandsCallbacks)
 ```
 
-| Method | Description |
-|---|---|
-| `load(url)` | Load and play an audio file. Resolves when playback starts. |
-| `togglePlayPause()` | Toggle playback. |
-| `enableMic()` | Request mic access and start analysis. |
-| `disableMic()` | Stop mic stream and clean up. |
-| `getBands(source?)` | Returns `Bands` for `'music'` (default) or `'mic'`. Call inside RAF. |
+| Method                | Description                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `load(url)`           | Load and play an audio file. Resolves when playback starts.                                   |
+| `togglePlayPause()`   | Toggle playback.                                                                              |
+| `enableMic()`         | Request mic access and start analysis.                                                        |
+| `disableMic()`        | Stop mic stream and clean up.                                                                 |
+| `getBands(source?)`   | Returns `Bands` for `'music'` (default) or `'mic'`. Call inside RAF.                          |
 | `getFftData(source?)` | Returns raw `Uint8Array` of frequency bins (0–255) for `'music'` or `'mic'`. Call inside RAF. |
-| `getWaveform()` | Returns raw time-domain `Uint8Array` from mic. Call inside RAF. |
-| `destroy()` | Stop playback, release mic, close AudioContext. |
+| `getWaveform()`       | Returns raw time-domain `Uint8Array` from mic. Call inside RAF.                               |
+| `destroy()`           | Stop playback, release mic, close AudioContext.                                               |
 
 ### `useAudioBands()` (React)
 
@@ -160,9 +167,9 @@ const {
 
 ```ts
 type Bands = {
-  bass: number;    // 0–1 — low frequencies (0–8% of spectrum)
-  mid: number;     // 0–1 — mid frequencies (8–40%)
-  high: number;    // 0–1 — high frequencies (40–100%)
+  bass: number; // 0–1 — low frequencies (0–8% of spectrum)
+  mid: number; // 0–1 — mid frequencies (8–40%)
+  high: number; // 0–1 — high frequencies (40–100%)
   overall: number; // 0–1 — weighted mix: bass×0.5 + mid×0.3 + high×0.2
 };
 ```
