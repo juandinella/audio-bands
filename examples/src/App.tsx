@@ -62,7 +62,7 @@ const VIZS: { key: Viz; label: string }[] = [
 ];
 
 export default function App() {
-  const { isPlaying, micActive, getBands, getFftData, getWaveform, loadTrack, togglePlayPause, toggleMic } =
+  const { isPlaying, micActive, audioError, getBands, getFftData, getWaveform, loadTrack, togglePlayPause, toggleMic } =
     useAudioBands();
 
   const [currentTrack, setCurrentTrack] = useState(0);
