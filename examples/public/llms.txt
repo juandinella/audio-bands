@@ -1,6 +1,6 @@
 # @juandinella/audio-bands
 
-Headless audio frequency analysis library for the browser. Returns real-time `bass`, `mid`, and `high` values normalized to 0–1 from a music track or microphone — simultaneously. No renderer included.
+Headless audio analysis library for the browser. Returns normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, and mic waveform data without shipping a renderer.
 
 ## Install
 
@@ -17,11 +17,17 @@ Most audio visualization libraries either handle only playback with no analysis,
 ```js
 import { AudioBands } from '@juandinella/audio-bands';
 
-const audio = new AudioBands({ onPlay: () => {}, onError: () => {} });
+const audio = new AudioBands({
+  customBands: {
+    presence: { from: 0.25, to: 0.5 },
+  },
+  onLoadError: (error) => console.error(error),
+});
 await audio.load('/track.mp3');
 
 function loop() {
   const { bass, mid, high, overall } = audio.getBands();
+  const custom = audio.getCustomBands();
   const fft = audio.getFftData(); // Uint8Array(128) — raw frequency bins
   requestAnimationFrame(loop);
 }
@@ -35,23 +41,25 @@ audio.destroy(); // clean up when done
 ```tsx
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
-const { loadTrack, getBands, getFftData, getWaveform, isPlaying, micActive, audioError } = useAudioBands();
+const { loadTrack, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
 
-// Call getBands / getFftData / getWaveform inside requestAnimationFrame, not in React state
+// Call getBands / getCustomBands / getFftData / getWaveform inside requestAnimationFrame
 ```
 
 ## Key API
 
 - `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
+- `getCustomBands(source?)` — returns normalized values for configured custom bands
 - `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
 - `getWaveform()` — returns time-domain waveform from mic as `Uint8Array`
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
+- `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
 
 ## Notes
 
 - `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
-- Works in React, Vue, Svelte, or plain HTML
+- Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency
 
 ## Links

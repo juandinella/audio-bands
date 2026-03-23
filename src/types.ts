@@ -1,16 +1,64 @@
+import type { AudioBandsError } from './errors';
+
 export type Bands = {
-  bass: number; // 0–1, low frequencies (0–8% of spectrum)
-  mid: number; // 0–1, mid frequencies (8–40%)
-  high: number; // 0–1, high frequencies (40–100%)
+  bass: number; // 0–1, low frequencies
+  mid: number; // 0–1, mid frequencies
+  high: number; // 0–1, high frequencies
   overall: number; // 0–1, weighted mix (bass×0.5 + mid×0.3 + high×0.2)
 };
 
 export type AudioSource = 'music' | 'mic';
 
+export type AudioBandsErrorKind = 'load' | 'mic' | 'lifecycle' | 'config';
+
+export type AudioBandsErrorCode =
+  | 'load_error'
+  | 'playback_error'
+  | 'mic_error'
+  | 'destroyed'
+  | 'unsupported_audio_context'
+  | 'invalid_config';
+
+export type AudioAnalyserConfig = {
+  fftSize?: number;
+  smoothingTimeConstant?: number;
+};
+
+export type BandRange = {
+  from: number;
+  to: number;
+};
+
+export type ClassicBandRanges = {
+  bass?: BandRange;
+  mid?: BandRange;
+  high?: BandRange;
+};
+
+export type CustomBandRanges = Record<string, BandRange>;
+
+export type AudioBandsState = {
+  isPlaying: boolean;
+  micActive: boolean;
+  hasTrack: boolean;
+  loadError: AudioBandsError | null;
+  micError: AudioBandsError | null;
+};
+
 export type AudioBandsCallbacks = {
   onPlay?: () => void;
   onPause?: () => void;
-  onError?: (error?: unknown) => void;
+  onError?: (error: AudioBandsError) => void;
+  onLoadError?: (error: AudioBandsError) => void;
+  onMicError?: (error: AudioBandsError) => void;
   onMicStart?: () => void;
   onMicStop?: () => void;
+  onStateChange?: (state: AudioBandsState) => void;
+};
+
+export type AudioBandsOptions = AudioBandsCallbacks & {
+  music?: AudioAnalyserConfig;
+  mic?: AudioAnalyserConfig;
+  bandRanges?: ClassicBandRanges;
+  customBands?: CustomBandRanges;
 };
