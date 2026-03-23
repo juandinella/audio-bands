@@ -1,7 +1,7 @@
 {
   "name": "@juandinella/audio-bands",
-  "version": "0.1.1",
-  "description": "Headless React hook for real-time audio frequency analysis. Get bass/mid/high bands from music or mic, without a renderer.",
+  "version": "0.2.0",
+  "description": "Headless browser audio analysis. Get bass/mid/high bands from music or mic, with an optional React hook.",
   "keywords": [
     "react",
     "hook",
@@ -24,6 +24,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./dist/react-entry.d.ts",
+      "import": "./dist/react-entry.js",
+      "require": "./dist/react-entry.cjs"
     }
   },
   "files": [
@@ -31,10 +36,16 @@
   ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "prepack": "npm run build"
   },
   "peerDependencies": {
     "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

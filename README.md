@@ -24,7 +24,7 @@ Every audio visualization library either handles only playback (no analysis) or 
 npm install @juandinella/audio-bands
 ```
 
-React is an optional peer dependency. The core class works in any framework or plain HTML.
+The root entrypoint is framework-agnostic. If you use the React hook, install `react` and import it from `@juandinella/audio-bands/react`.
 
 ## Usage
 
@@ -62,7 +62,7 @@ audio.destroy();
 ### React hook
 
 ```tsx
-import { useAudioBands } from '@juandinella/audio-bands';
+import { useAudioBands } from '@juandinella/audio-bands/react';
 import { useEffect, useRef } from 'react';
 
 function Visualizer() {
@@ -163,6 +163,12 @@ const {
 } = useAudioBands();
 ```
 
+Import it from:
+
+```ts
+import { useAudioBands } from '@juandinella/audio-bands/react';
+```
+
 ### `Bands`
 
 ```ts
@@ -180,7 +186,7 @@ type Bands = {
 type AudioBandsCallbacks = {
   onPlay?: () => void;
   onPause?: () => void;
-  onError?: () => void;
+  onError?: (error?: unknown) => void;
   onMicStart?: () => void;
   onMicStop?: () => void;
 };
@@ -189,9 +195,11 @@ type AudioBandsCallbacks = {
 ## Notes
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`. Browsers require a user gesture before audio can start.
+- The root package export does not depend on React. The React hook lives at `@juandinella/audio-bands/react`.
 - The mic analyser is **not** connected to `AudioContext.destination`, so there is no feedback loop.
 - `getBands()`, `getFftData()`, and `getWaveform()` read live data from the audio graph. Call them inside `requestAnimationFrame`, not in response to React state.
 - `getFftData()` returns the same underlying buffer on every call. Copy it if you need to compare frames: `Array.from(fft)`.
+- `load()` and `enableMic()` reject on browser playback/permission errors. Use `try/catch` if you need custom handling.
 
 ## License
 
