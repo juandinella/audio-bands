@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAudioBands } from '@juandinella/audio-bands';
+import { useAudioBands } from '@juandinella/audio-bands/react';
 
 // ── Pre-computed log band index ranges ──────────────────────────────────────
 // Computed once at module load instead of every animation frame.
@@ -457,7 +457,7 @@ export default function App() {
             <span style={s.cMuted}>{'import '}</span>
             <span style={s.cText}>{'{ useAudioBands }'}</span>
             <span style={s.cMuted}>{' from '}</span>
-            <span style={s.cAccent}>{`'@juandinella/audio-bands'\n\n`}</span>
+            <span style={s.cAccent}>{`'@juandinella/audio-bands/react'\n\n`}</span>
             <span style={s.cMuted}>{'const '}</span>
             <span style={s.cText}>{'{ getBands }'}</span>
             <span style={s.cMuted}>{' = '}</span>

@@ -10,7 +10,7 @@ export type AudioSource = 'music' | 'mic';
 export type AudioBandsCallbacks = {
   onPlay?: () => void;
   onPause?: () => void;
-  onError?: () => void;
+  onError?: (error?: unknown) => void;
   onMicStart?: () => void;
   onMicStop?: () => void;
 };

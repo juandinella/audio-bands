@@ -44,6 +44,7 @@ export class AudioBands {
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
+  private destroyed = false;
 
   constructor(callbacks: AudioBandsCallbacks = {}) {
     this.callbacks = callbacks;
@@ -51,6 +52,9 @@ export class AudioBands {
 
   // Lazy — AudioContext must be created after a user gesture
   private ensureCtx(): AudioContext {
+    if (this.destroyed) {
+      throw new Error('[audio-bands] This AudioBands instance was destroyed');
+    }
     if (this.ctx) return this.ctx;
 
     const Ctx =
@@ -76,13 +80,7 @@ export class AudioBands {
   async load(url: string): Promise<void> {
     const ctx = this.ensureCtx();
 
-    this.audioEl?.pause();
-    if (this.audioEl) this.audioEl.src = '';
-    try {
-      this.musicSource?.disconnect();
-    } catch {
-      /* already disconnected */
-    }
+    this.teardownMusic();
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
@@ -97,8 +95,9 @@ export class AudioBands {
     try {
       await audio.play();
       this.callbacks.onPlay?.();
-    } catch {
-      this.callbacks.onError?.();
+    } catch (error) {
+      this.callbacks.onError?.(error);
+      throw error;
     }
   }
 
@@ -106,8 +105,10 @@ export class AudioBands {
     const audio = this.audioEl;
     if (!audio) return;
     if (audio.paused) {
-      audio.play();
-      this.callbacks.onPlay?.();
+      void audio
+        .play()
+        .then(() => this.callbacks.onPlay?.())
+        .catch((error) => this.callbacks.onError?.(error));
     } else {
       audio.pause();
       this.callbacks.onPause?.();
@@ -116,6 +117,7 @@ export class AudioBands {
 
   async enableMic(): Promise<void> {
     const ctx = this.ensureCtx();
+    if (this.micStream) return;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -141,12 +143,14 @@ export class AudioBands {
       this.micSource = source;
 
       this.callbacks.onMicStart?.();
-    } catch {
-      console.warn('[audio-bands] Mic access denied');
+    } catch (error) {
+      this.callbacks.onError?.(error);
+      throw error;
     }
   }
 
   disableMic(): void {
+    const hadMic = Boolean(this.micStream || this.micSource || this.micAnalyser);
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.micStream = null;
     try {
@@ -158,7 +162,7 @@ export class AudioBands {
     this.micAnalyser = null;
     this.micData = null;
     this.micWaveformData = null;
-    this.callbacks.onMicStop?.();
+    if (hadMic) this.callbacks.onMicStop?.();
   }
 
   // Call inside requestAnimationFrame to get current frequency data
@@ -192,8 +196,31 @@ export class AudioBands {
 
   // Call when done — stops mic, closes AudioContext
   destroy(): void {
+    if (this.destroyed) return;
+
+    this.teardownMusic();
+    this.disableMic();
+    void this.ctx?.close();
+    this.ctx = null;
+    this.musicAnalyser = null;
+    this.musicData = null;
+    this.callbacks = {};
+    this.destroyed = true;
+  }
+
+  private teardownMusic(): void {
     this.audioEl?.pause();
-    this.micStream?.getTracks().forEach((t) => t.stop());
-    this.ctx?.close();
+    if (this.audioEl) {
+      this.audioEl.src = '';
+      this.audioEl.load();
+    }
+    this.audioEl = null;
+
+    try {
+      this.musicSource?.disconnect();
+    } catch {
+      /* already disconnected */
+    }
+    this.musicSource = null;
   }
 }

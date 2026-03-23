@@ -33,7 +33,7 @@ audio.destroy(); // clean up when done
 ## React hook
 
 ```tsx
-import { useAudioBands } from '@juandinella/audio-bands';
+import { useAudioBands } from '@juandinella/audio-bands/react';
 
 const { loadTrack, getBands, getFftData, getWaveform, isPlaying, micActive, audioError } = useAudioBands();
 
