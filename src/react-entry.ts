@@ -1,3 +1,16 @@
 export { useAudioBands } from './react';
+export { AudioBandsError } from './errors';
 export type { UseAudioBandsReturn } from './react';
-export type { Bands, AudioSource, AudioBandsCallbacks } from './types';
+export type {
+  AudioAnalyserConfig,
+  AudioBandsCallbacks,
+  AudioBandsErrorCode,
+  AudioBandsErrorKind,
+  AudioBandsOptions,
+  AudioBandsState,
+  AudioSource,
+  BandRange,
+  Bands,
+  ClassicBandRanges,
+  CustomBandRanges,
+} from './types';
