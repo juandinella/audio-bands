@@ -19,7 +19,7 @@ export type UseAudioBandsReturn = {
   getBands: (source?: AudioSource) => Bands;
   getCustomBands: (source?: AudioSource) => Record<string, number>;
   getFftData: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
-  getWaveform: () => Uint8Array<ArrayBuffer> | null;
+  getWaveform: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
 };
 
 const INITIAL_STATE: AudioBandsState = {
@@ -105,8 +105,8 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     return instance.current!.getFftData(source);
   }, []);
 
-  const getWaveform = useCallback(() => {
-    return instance.current!.getWaveform();
+  const getWaveform = useCallback((source?: AudioSource) => {
+    return instance.current!.getWaveform(source);
   }, []);
 
   return {

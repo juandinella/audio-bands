@@ -182,6 +182,7 @@ export class AudioBands {
   private ctx: AudioContext | null = null;
   private musicAnalyser: AnalyserNode | null = null;
   private musicData: Uint8Array<ArrayBuffer> | null = null;
+  private musicWaveformData: Uint8Array<ArrayBuffer> | null = null;
   private micAnalyser: AnalyserNode | null = null;
   private micData: Uint8Array<ArrayBuffer> | null = null;
   private micWaveformData: Uint8Array<ArrayBuffer> | null = null;
@@ -328,10 +329,8 @@ export class AudioBands {
     return this.readFrequencyData(source);
   }
 
-  getWaveform(): Uint8Array<ArrayBuffer> | null {
-    if (!this.micAnalyser || !this.micWaveformData) return null;
-    this.micAnalyser.getByteTimeDomainData(this.micWaveformData);
-    return this.micWaveformData;
+  getWaveform(source: AudioSource = 'music'): Uint8Array<ArrayBuffer> | null {
+    return this.readWaveformData(source);
   }
 
   destroy(): void {
@@ -343,6 +342,7 @@ export class AudioBands {
     this.ctx = null;
     this.musicAnalyser = null;
     this.musicData = null;
+    this.musicWaveformData = null;
     this.setState({ isPlaying: false, micActive: false, hasTrack: false });
     this.options = {};
     this.destroyed = true;
@@ -356,6 +356,18 @@ export class AudioBands {
 
     if (!this.musicAnalyser || !this.musicData) return null;
     return fillFrequencyData(this.musicAnalyser, this.musicData);
+  }
+
+  private readWaveformData(source: AudioSource): Uint8Array<ArrayBuffer> | null {
+    if (source === 'mic') {
+      if (!this.micAnalyser || !this.micWaveformData) return null;
+      this.micAnalyser.getByteTimeDomainData(this.micWaveformData);
+      return this.micWaveformData;
+    }
+
+    if (!this.musicAnalyser || !this.musicWaveformData) return null;
+    this.musicAnalyser.getByteTimeDomainData(this.musicWaveformData);
+    return this.musicWaveformData;
   }
 
   private ensureCtx(): AudioContext {
@@ -390,6 +402,9 @@ export class AudioBands {
     this.musicAnalyser = analyser;
     this.musicData = new Uint8Array(
       analyser.frequencyBinCount,
+    ) as Uint8Array<ArrayBuffer>;
+    this.musicWaveformData = new Uint8Array(
+      analyser.fftSize,
     ) as Uint8Array<ArrayBuffer>;
 
     return ctx;
@@ -466,6 +481,9 @@ export class AudioBands {
     }
 
     this.musicSource = null;
+    this.musicWaveformData = this.musicAnalyser
+      ? new Uint8Array(this.musicAnalyser.fftSize) as Uint8Array<ArrayBuffer>
+      : null;
     this.setState({ isPlaying: false, hasTrack: false });
   }
 }

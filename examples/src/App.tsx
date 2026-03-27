@@ -136,7 +136,7 @@ export default function App() {
       const mic = micActive && (viz === 'blob' || viz === 'lissajous')
         ? getBands('mic')
         : ZERO_BANDS;
-      const waveform = (viz === 'blob' && micActive) ? getWaveform() : null;
+      const waveform = (viz === 'blob' && micActive) ? getWaveform('mic') : null;
 
       ctx.clearRect(0, 0, w, h);
 

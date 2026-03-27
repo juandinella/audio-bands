@@ -4,7 +4,7 @@
 
 **Demo**: [audio-bands.juandinella.com](https://audio-bands.juandinella.com)
 
-Headless audio analysis for the browser. Get normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, or mic waveform data without shipping a renderer.
+Headless audio analysis for the browser. Get normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, or time-domain waveform data without shipping a renderer.
 
 ```ts
 const { bass, mid, high } = audio.getBands();
@@ -56,6 +56,7 @@ function loop() {
   const { bass, mid, high, overall } = audio.getBands();
   const custom = audio.getCustomBands();
   const fft = audio.getFftData();
+  const waveform = audio.getWaveform();
 
   requestAnimationFrame(loop);
 }
@@ -103,7 +104,7 @@ await audio.enableMic();
 
 const micBands = audio.getBands('mic');
 const micCustomBands = audio.getCustomBands('mic');
-const waveform = audio.getWaveform();
+const waveform = audio.getWaveform('mic');
 ```
 
 ## When To Use Bands Vs FFT
@@ -153,7 +154,7 @@ new AudioBands(options?: AudioBandsOptions)
 | `getBands(source?)`     | Returns normalized `{ bass, mid, high, overall }`. |
 | `getCustomBands(source?)` | Returns normalized values for configured custom bands. |
 | `getFftData(source?)`   | Returns raw `Uint8Array` frequency bins. |
-| `getWaveform()`         | Returns raw mic time-domain data. |
+| `getWaveform(source?)`  | Returns raw time-domain data for `'music'` or `'mic'`. |
 | `getState()`            | Returns the current playback/mic/error state. |
 | `destroy()`             | Stop playback, release the mic and close the `AudioContext`. |
 

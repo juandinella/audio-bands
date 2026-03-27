@@ -1,6 +1,6 @@
 # @juandinella/audio-bands
 
-Headless audio analysis library for the browser. Returns normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, and mic waveform data without shipping a renderer.
+Headless audio analysis library for the browser. Returns normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, and time-domain waveform data without shipping a renderer.
 
 ## Install
 
@@ -51,7 +51,7 @@ const { loadTrack, getBands, getCustomBands, getFftData, getWaveform, isPlaying,
 - `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
 - `getCustomBands(source?)` — returns normalized values for configured custom bands
 - `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
-- `getWaveform()` — returns time-domain waveform from mic as `Uint8Array`
+- `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
