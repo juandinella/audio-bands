@@ -41,7 +41,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
 
   latestOptions.current = options;
 
-  if (!instance.current) {
+  const getInstance = () => {
+    if (instance.current) return instance.current;
+
     instance.current = new AudioBands({
       ...options,
       onPlay: () => {
@@ -70,43 +72,52 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
         latestOptions.current.onStateChange?.(nextState);
       },
     });
-  }
+
+    return instance.current;
+  };
+
+  const currentInstance = getInstance();
 
   useEffect(() => {
-    setState(instance.current!.getState());
-    return () => instance.current?.destroy();
+    setState(currentInstance.getState());
+    return () => {
+      const next = instance.current;
+      instance.current = null;
+      next?.destroy();
+    };
   }, []);
 
   const loadTrack = useCallback(async (url: string) => {
-    await instance.current!.load(url);
+    await getInstance().load(url);
   }, []);
 
   const togglePlayPause = useCallback(() => {
-    instance.current!.togglePlayPause();
+    getInstance().togglePlayPause();
   }, []);
 
   const toggleMic = useCallback(async () => {
-    if (instance.current!.getState().micActive) {
-      instance.current!.disableMic();
+    const next = getInstance();
+    if (next.getState().micActive) {
+      next.disableMic();
     } else {
-      await instance.current!.enableMic();
+      await next.enableMic();
     }
   }, []);
 
   const getBands = useCallback((source?: AudioSource) => {
-    return instance.current!.getBands(source);
+    return getInstance().getBands(source);
   }, []);
 
   const getCustomBands = useCallback((source?: AudioSource) => {
-    return instance.current!.getCustomBands(source);
+    return getInstance().getCustomBands(source);
   }, []);
 
   const getFftData = useCallback((source?: AudioSource) => {
-    return instance.current!.getFftData(source);
+    return getInstance().getFftData(source);
   }, []);
 
   const getWaveform = useCallback(() => {
-    return instance.current!.getWaveform();
+    return getInstance().getWaveform();
   }, []);
 
   return {

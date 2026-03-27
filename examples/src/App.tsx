@@ -1,348 +1,334 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
-// ── Pre-computed log band index ranges ──────────────────────────────────────
-// Computed once at module load instead of every animation frame.
-// FFT bin count is fixed at 128 (fftSize 256 / 2).
-const FFT_BIN_COUNT = 128;
-
-function buildLogRanges(bins: number, n: number): Array<[number, number]> {
-  return Array.from({ length: n }, (_, b) => [
-    Math.floor(Math.pow(bins, b / n)),
-    Math.floor(Math.pow(bins, (b + 1) / n)),
-  ] as [number, number]);
-}
-
-const LOG_RANGES_64  = buildLogRanges(FFT_BIN_COUNT, 64);
-const LOG_RANGES_128 = buildLogRanges(FFT_BIN_COUNT, 128);
-
-// Group FFT bins into logarithmically-spaced bands using pre-computed ranges.
-// Used for bars (discrete bars can share bins without issue).
-function logBands(fft: Uint8Array<ArrayBuffer>, ranges: Array<[number, number]>): number[] {
-  const bins = fft.length;
-  return ranges.map(([start, end]) => {
-    let sum = 0, count = 0;
-    for (let i = start; i <= end && i < bins; i++) { sum += fft[i]; count++; }
-    return count > 0 ? sum / count / 255 : 0;
-  });
-}
-
-// Continuous log-interpolated sample — avoids the "same bin" artifact that
-// logBands produces when many bands map to identical low-end bins.
-// i: sample index (0..n-1), n: total samples, fft: frequency data.
-function logSample(fft: Uint8Array<ArrayBuffer>, i: number, n: number): number {
-  const binF = Math.pow(fft.length, (i + 0.5) / n);
-  const b0 = Math.floor(binF);
-  const b1 = Math.min(b0 + 1, fft.length - 1);
-  return (fft[b0] * (1 - (binF - b0)) + fft[b1] * (binF - b0)) / 255;
-}
-
-// Compute band averages directly from an already-fetched FFT buffer,
-// avoiding a second getByteFrequencyData call in the same frame.
-function bandsFromFft(fft: Uint8Array<ArrayBuffer>) {
-  const len = fft.length;
-  let bSum = 0, mSum = 0, hSum = 0;
-  const bEnd = Math.floor(len * 0.08);
-  const mEnd = Math.floor(len * 0.4);
-  for (let i = 0;    i < bEnd; i++) bSum += fft[i];
-  for (let i = bEnd; i < mEnd; i++) mSum += fft[i];
-  for (let i = mEnd; i < len;  i++) hSum += fft[i];
-  const bass = bSum / bEnd / 255;
-  const mid  = mSum / (mEnd - bEnd) / 255;
-  const high = hSum / (len - mEnd) / 255;
-  return { bass, mid, high, overall: bass * 0.5 + mid * 0.3 + high * 0.2 };
-}
-
+const FFT_BIN_COUNT = 256;
 const ZERO_BANDS = { bass: 0, mid: 0, high: 0, overall: 0 };
-const EMPTY_64: number[] = new Array(64).fill(0);
-const EMPTY_128: number[] = new Array(128).fill(0);
+const EMPTY_METERS = { presence: 0, air: 0 };
 
 const TRACKS = [
-  { name: 'Sabre Dance', composer: 'Marty Paich Piano Quartet', url: 'https://dn721903.ca.archive.org/0/items/JV-38892-1960-QmZBx4kf9ahTkoVGdbQjamPmiwCNq4EGdgJZGdn1Uq6Y3B.mp3/DW524439.mp3' },
   { name: 'Gymnopédie No.1', composer: 'Erik Satie', url: '/audio/gymnopedie-1.ogg' },
   { name: 'Maple Leaf Rag', composer: 'Scott Joplin', url: '/audio/maple-leaf-rag.ogg' },
   { name: 'Gnossienne No.1', composer: 'Erik Satie', url: '/audio/gnossienne-1.ogg' },
+  { name: 'Sabre Dance', composer: 'Marty Paich Piano Quartet', url: 'https://dn721903.ca.archive.org/0/items/JV-38892-1960-QmZBx4kf9ahTkoVGdbQjamPmiwCNq4EGdgJZGdn1Uq6Y3B.mp3/DW524439.mp3' },
 ];
 
-type Viz = 'bars' | 'spectrum' | 'blob' | 'lissajous';
+type Viz = 'bars' | 'ribbon' | 'orbital';
+type SnippetTab = 'react' | 'vanilla' | 'custom';
 
-const VIZS: { key: Viz; label: string }[] = [
-  { key: 'bars', label: 'bars' },
-  { key: 'spectrum', label: 'spectrum' },
-  { key: 'blob', label: 'blob' },
-  { key: 'lissajous', label: 'lissajous' },
+const VIZS: { key: Viz; label: string; detail: string }[] = [
+  { key: 'bars', label: 'Bars', detail: 'Raw FFT buckets for spectrum-style renderers' },
+  { key: 'ribbon', label: 'Ribbon', detail: 'Smooth area driven by the current analyser curve' },
+  { key: 'orbital', label: 'Orbital', detail: 'High-level motion from bands plus mic overlay' },
 ];
+
+const SNIPPETS: Record<SnippetTab, string> = {
+  react: `import { useAudioBands } from '@juandinella/audio-bands/react'
+
+const {
+  loadTrack,
+  getBands,
+  getFftData,
+  loadError,
+} = useAudioBands()
+
+await loadTrack('/track.mp3')
+
+function frame() {
+  const { bass, mid, high } = getBands()
+  const fft = getFftData()
+}`,
+  vanilla: `import { AudioBands } from '@juandinella/audio-bands/core'
+
+const audio = new AudioBands({
+  onLoadError: console.error,
+  onMicError: console.error,
+})
+
+await audio.load('/track.mp3')
+const state = audio.getState()
+const bands = audio.getBands()`,
+  custom: `const audio = new AudioBands({
+  music: { fftSize: 512, smoothingTimeConstant: 0.68 },
+  customBands: {
+    presence: { from: 0.18, to: 0.45 },
+    air: { from: 0.62, to: 1 },
+  },
+})
+
+const { presence, air } = audio.getCustomBands()`,
+};
+
+function clamp(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function blendBands(fft: Uint8Array<ArrayBuffer> | null) {
+  if (!fft) return ZERO_BANDS;
+
+  const len = fft.length;
+  const bassEnd = Math.max(1, Math.floor(len * 0.08));
+  const midEnd = Math.max(bassEnd + 1, Math.floor(len * 0.4));
+
+  let bass = 0;
+  let mid = 0;
+  let high = 0;
+
+  for (let i = 0; i < bassEnd; i++) bass += fft[i];
+  for (let i = bassEnd; i < midEnd; i++) mid += fft[i];
+  for (let i = midEnd; i < len; i++) high += fft[i];
+
+  const bassValue = bass / bassEnd / 255;
+  const midValue = mid / (midEnd - bassEnd) / 255;
+  const highValue = high / (len - midEnd) / 255;
+
+  return {
+    bass: bassValue,
+    mid: midValue,
+    high: highValue,
+    overall: bassValue * 0.5 + midValue * 0.3 + highValue * 0.2,
+  };
+}
+
+function formatValue(value: number): string {
+  return value.toFixed(2);
+}
 
 export default function App() {
-  const { isPlaying, micActive, audioError, getBands, getFftData, getWaveform, loadTrack, togglePlayPause, toggleMic } =
-    useAudioBands();
+  const {
+    isPlaying,
+    micActive,
+    hasTrack,
+    loadError,
+    micError,
+    state,
+    loadTrack,
+    togglePlayPause,
+    toggleMic,
+    getBands,
+    getCustomBands,
+    getFftData,
+    getWaveform,
+  } = useAudioBands({
+    music: { fftSize: 512, smoothingTimeConstant: 0.68 },
+    mic: { fftSize: 1024, smoothingTimeConstant: 0.45 },
+    customBands: {
+      presence: { from: 0.18, to: 0.45 },
+      air: { from: 0.62, to: 1 },
+    },
+  });
 
   const [currentTrack, setCurrentTrack] = useState(0);
   const [viz, setViz] = useState<Viz>('bars');
+  const [snippetTab, setSnippetTab] = useState<SnippetTab>('react');
   const [copied, setCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [liveBands, setLiveBands] = useState(ZERO_BANDS);
+  const [liveMicBands, setLiveMicBands] = useState(ZERO_BANDS);
+  const [customBands, setCustomBands] = useState<Record<string, number>>(EMPTY_METERS);
+  const [fftPeek, setFftPeek] = useState<number[]>([]);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText('npm install @juandinella/audio-bands');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
-
-  // Cached bar gradient — recreated only when canvas height changes
-  const barGradRef = useRef<{ h: number; grad: CanvasGradient | null }>({ h: 0, grad: null });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     function resize() {
-      if (!canvas) return;
       const dpr = window.devicePixelRatio || 1;
       canvas.width = canvas.offsetWidth * dpr;
       canvas.height = canvas.offsetHeight * dpr;
-      barGradRef.current.grad = null; // invalidate cached gradient on resize
     }
+
     resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(canvas);
 
-    // Read design tokens from CSS custom properties — keeps canvas colours
-    // in sync with the design system without hardcoding hex values here.
-    const cssVars = getComputedStyle(document.documentElement);
-    const accent = cssVars.getPropertyValue('--accent').trim();
-    const pink   = cssVars.getPropertyValue('--accent-2').trim();
+    function render() {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    function loop() {
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d')!;
-      const w = canvas.width;
-      const h = canvas.height;
       const dpr = window.devicePixelRatio || 1;
-      const t = Date.now() / 1000;
+      const width = canvas.width;
+      const height = canvas.height;
+      const time = performance.now() / 1000;
 
-      // Fetch only what the active visualization needs — avoids redundant
-      // getByteFrequencyData calls for data the current viz won't use.
-      const needsFft  = viz === 'bars' || viz === 'spectrum' || viz === 'blob';
-      const needsMic  = micActive && (viz === 'bars' || viz === 'spectrum');
-      const fft       = needsFft ? getFftData('music') : null;
-      const fftMic    = needsMic ? getFftData('mic') : null;
-      // For blob, derive bands from the already-fetched fft (no second read).
-      // For lissajous, call getBands directly (no fft needed).
-      const music = viz === 'lissajous'
-        ? getBands('music')
-        : (fft ? bandsFromFft(fft) : ZERO_BANDS);
-      const mic = micActive && (viz === 'blob' || viz === 'lissajous')
-        ? getBands('mic')
-        : ZERO_BANDS;
-      const waveform = (viz === 'blob' && micActive) ? getWaveform() : null;
+      const musicFft = getFftData('music');
+      const micFft = micActive ? getFftData('mic') : null;
+      const waveform = micActive ? getWaveform() : null;
+      const musicBands = musicFft ? blendBands(musicFft) : getBands('music');
+      const micBands = micActive ? getBands('mic') : ZERO_BANDS;
+      const custom = getCustomBands('music');
 
-      ctx.clearRect(0, 0, w, h);
+      setLiveBands(musicBands);
+      setLiveMicBands(micBands);
+      setCustomBands(Object.keys(custom).length > 0 ? custom : EMPTY_METERS);
+      setFftPeek(musicFft ? Array.from(musicFft.slice(0, 12), (value) => value / 255) : []);
+
+      ctx.clearRect(0, 0, width, height);
+
+      const accent = '#d7ff74';
+      const accentSoft = 'rgba(215,255,116,0.3)';
+      const micColor = '#ff8bd2';
+      const gridColor = 'rgba(255,255,255,0.06)';
+
+      ctx.fillStyle = '#081018';
+      ctx.fillRect(0, 0, width, height);
+
+      for (let i = 1; i < 5; i++) {
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, (height / 5) * i);
+        ctx.lineTo(width, (height / 5) * i);
+        ctx.stroke();
+      }
 
       if (viz === 'bars') {
-        // ── Logarithmic bands ─────────────────────────────────────
-        if (!fft) { rafRef.current = requestAnimationFrame(loop); return; }
-        const N = 64;
-        const musicBands = logBands(fft, LOG_RANGES_64);
-        const micBands = fftMic ? logBands(fftMic, LOG_RANGES_64) : null;
-        const gap = 2 * dpr;
-        const barW = (w - gap * (N - 1)) / N;
-        const labelH = 20 * dpr;
-        const maxH = h - labelH;
+        const bins = musicFft ?? new Uint8Array(FFT_BIN_COUNT / 2);
+        const count = 48;
+        const gap = 4 * dpr;
+        const barWidth = (width - gap * (count - 1)) / count;
 
-        // Cache the gradient — recreate only when canvas height changes
-        if (barGradRef.current.h !== maxH || !barGradRef.current.grad) {
-          const grad = ctx.createLinearGradient(0, 0, 0, maxH);
-          grad.addColorStop(0,    accent);
-          grad.addColorStop(0.6,  accent + '99');
-          grad.addColorStop(1,    accent + '22');
-          barGradRef.current = { h: maxH, grad };
-        }
-        ctx.fillStyle = barGradRef.current.grad!;
+        for (let i = 0; i < count; i++) {
+          const start = Math.floor((bins.length / count) * i);
+          const end = Math.max(start + 1, Math.floor((bins.length / count) * (i + 1)));
+          let sum = 0;
+          for (let j = start; j < end; j++) sum += bins[j] ?? 0;
+          const value = sum / (end - start) / 255;
+          const x = i * (barWidth + gap);
+          const h = Math.max(6 * dpr, value * height * 0.88);
 
-        for (let i = 0; i < N; i++) {
-          const x = i * (barW + gap);
-          const musicH = Math.max(2 * dpr, musicBands[i] * maxH);
-          ctx.fillRect(x, maxH - musicH, barW, musicH);
+          const grad = ctx.createLinearGradient(0, height - h, 0, height);
+          grad.addColorStop(0, accent);
+          grad.addColorStop(1, accentSoft);
+          ctx.fillStyle = grad;
+          ctx.fillRect(x, height - h, barWidth, h);
         }
 
-        if (micBands) {
-          ctx.fillStyle = pink + '88';
-          for (let i = 0; i < N; i++) {
-            const x = i * (barW + gap);
-            const micH = Math.max(2 * dpr, micBands[i] * maxH);
-            ctx.fillRect(x, maxH - micH, barW, micH);
-          }
-        }
-
-        ctx.fillStyle = 'rgba(232,230,223,0.2)';
-        ctx.font = `${9 * dpr}px DM Mono, monospace`;
-        ctx.textAlign = 'left';  ctx.fillText('BASS', 2 * dpr, h - 6 * dpr);
-        ctx.textAlign = 'center'; ctx.fillText('MID', w / 2, h - 6 * dpr);
-        ctx.textAlign = 'right';  ctx.fillText('HIGH', w - 2 * dpr, h - 6 * dpr);
-
-      } else if (viz === 'spectrum') {
-        // ── Log-scaled smooth area ────────────────────────────────
-        if (!fft) { rafRef.current = requestAnimationFrame(loop); return; }
-        const N = 64;
-        const musicBands = Array.from({ length: N }, (_, i) => logSample(fft, i, N));
-        const micBands = fftMic ? Array.from({ length: N }, (_, i) => logSample(fftMic, i, N)) : null;
-        const step = w / (N - 1);
-
-        const drawArea = (bands: number[], color: string, fill: boolean) => {
+        if (micFft) {
+          ctx.strokeStyle = 'rgba(255,139,210,0.9)';
+          ctx.lineWidth = 1.25 * dpr;
           ctx.beginPath();
-          ctx.moveTo(0, h);
-          bands.forEach((v, i) => {
-            const x = i * step;
-            const y = h - v * h * 0.92;
-            if (i === 0) ctx.lineTo(x, y);
-            else {
-              const px = (i - 1) * step;
-              const py = h - bands[i - 1] * h * 0.92;
-              ctx.bezierCurveTo((px + x) / 2, py, (px + x) / 2, y, x, y);
-            }
-          });
-          ctx.lineTo(w, h);
-          ctx.closePath();
-          if (fill) {
-            const grad = ctx.createLinearGradient(0, 0, 0, h);
-            grad.addColorStop(0, color + 'ee');
-            grad.addColorStop(0.5, color + '66');
-            grad.addColorStop(1, color + '00');
-            ctx.fillStyle = grad;
-            ctx.fill();
-          } else {
-            ctx.strokeStyle = color + 'bb';
-            ctx.lineWidth = 1.5 * dpr;
-            ctx.stroke();
+          for (let i = 0; i < count; i++) {
+            const idx = Math.min(micFft.length - 1, Math.floor((micFft.length / count) * i));
+            const x = i * (barWidth + gap) + barWidth / 2;
+            const y = height - (micFft[idx] / 255) * height * 0.92;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
           }
-        };
+          ctx.stroke();
+        }
+      }
 
-        drawArea(musicBands, accent, true);
-        if (micBands) drawArea(micBands, pink, false);
+      if (viz === 'ribbon') {
+        const bins = musicFft ?? new Uint8Array(FFT_BIN_COUNT / 2);
+        const points = 64;
+        const step = width / (points - 1);
 
-      } else if (viz === 'blob') {
-        // ── Blob distorted by log bands + mic ring ────────────────
-        const cx = w / 2;
-        const cy = h / 2;
-        const baseR = Math.min(w, h) * 0.22;
-        const N = 64;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        for (let i = 0; i < points; i++) {
+          const idx = Math.min(bins.length - 1, Math.floor((bins.length / points) * i));
+          const value = bins[idx] / 255;
+          const x = i * step;
+          const y = height - value * height * 0.84;
+          if (i === 0) ctx.lineTo(x, y);
+          else {
+            const px = (i - 1) * step;
+            const py = height - (bins[Math.min(bins.length - 1, Math.floor((bins.length / points) * (i - 1)))] / 255) * height * 0.84;
+            ctx.bezierCurveTo((px + x) / 2, py, (px + x) / 2, y, x, y);
+          }
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
 
-        // glow
-        const glowR = baseR * (1.3 + music.bass * 0.7);
-        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR * 1.8);
-        glow.addColorStop(0, accent + '1a');
-        glow.addColorStop(1, 'transparent');
+        const fill = ctx.createLinearGradient(0, 0, 0, height);
+        fill.addColorStop(0, 'rgba(215,255,116,0.95)');
+        fill.addColorStop(0.45, 'rgba(215,255,116,0.3)');
+        fill.addColorStop(1, 'rgba(215,255,116,0)');
+        ctx.fillStyle = fill;
+        ctx.fill();
+
+        if (micFft) {
+          ctx.beginPath();
+          for (let i = 0; i < points; i++) {
+            const idx = Math.min(micFft.length - 1, Math.floor((micFft.length / points) * i));
+            const x = i * step;
+            const y = height - (micFft[idx] / 255) * height * 0.74;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = 'rgba(255,139,210,0.8)';
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.stroke();
+        }
+      }
+
+      if (viz === 'orbital') {
+        const cx = width / 2;
+        const cy = height / 2;
+        const radius = Math.min(width, height) * 0.18;
+        const points = 72;
+
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 2.4);
+        glow.addColorStop(0, 'rgba(215,255,116,0.18)');
+        glow.addColorStop(1, 'rgba(215,255,116,0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(cx, cy, glowR * 1.8, 0, Math.PI * 2);
+        ctx.arc(cx, cy, radius * 2.4, 0, Math.PI * 2);
         ctx.fill();
 
-        // blob — harmonic deformation approach:
-        // Modulate the radius with sine/cosine harmonics weighted by bass/mid/high.
-        // This avoids the "dead bin" concavity that appears when mapping FFT bins
-        // directly to angles (low-frequency bins near 0 would create a dent).
-        const pts: { x: number; y: number }[] = [];
-        for (let i = 0; i < N; i++) {
-          const angle = (i / N) * Math.PI * 2;
-          const r = baseR * (
-            0.72
-            + music.overall * 0.18
-            + Math.sin(angle * 2 + t * 0.8)  * music.bass * 0.18
-            + Math.cos(angle * 3 - t * 0.5)  * music.mid  * 0.13
-            + Math.sin(angle * 5 + t * 1.2)  * music.high * 0.09
-            + Math.cos(angle * 7 + t * 0.35) * music.overall * 0.05
-          );
-          pts.push({ x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r });
-        }
         ctx.beginPath();
-        ctx.moveTo((pts[0].x + pts[N - 1].x) / 2, (pts[0].y + pts[N - 1].y) / 2);
-        for (let i = 0; i < N; i++) {
-          const next = pts[(i + 1) % N];
-          const mx = (pts[i].x + next.x) / 2;
-          const my = (pts[i].y + next.y) / 2;
-          ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        for (let i = 0; i <= points; i++) {
+          const angle = (i / points) * Math.PI * 2;
+          const wave =
+            Math.sin(angle * 2 + time * 1.4) * liveBands.bass * 0.18 +
+            Math.cos(angle * 3 - time * 0.6) * liveBands.mid * 0.14 +
+            Math.sin(angle * 5 + time * 0.9) * liveBands.high * 0.08;
+          const r = radius * (1 + liveBands.overall * 0.45 + wave);
+          const x = cx + Math.cos(angle) * r;
+          const y = cy + Math.sin(angle) * r;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
         ctx.closePath();
-        const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 1.6);
-        bg.addColorStop(0, accent + 'ff');
-        bg.addColorStop(0.4, accent + 'aa');
-        bg.addColorStop(1, accent + '00');
-        ctx.fillStyle = bg;
+        ctx.fillStyle = 'rgba(215,255,116,0.18)';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.5 * dpr;
         ctx.fill();
+        ctx.stroke();
 
-        // mic waveform as outer ring
         if (waveform && micActive) {
           ctx.beginPath();
-          const micR = baseR * (1.45 + mic.overall * 0.4);
           for (let i = 0; i <= waveform.length; i++) {
             const idx = i % waveform.length;
-            const angle = (i / waveform.length) * Math.PI * 2 - Math.PI / 2;
-            const v = (waveform[idx] / 255) * 2 - 1;
-            const r = micR + v * baseR * 0.3;
+            const angle = (i / waveform.length) * Math.PI * 2;
+            const offset = (waveform[idx] / 255) * 2 - 1;
+            const r = radius * (1.55 + liveMicBands.overall * 0.25) + offset * radius * 0.18;
             const x = cx + Math.cos(angle) * r;
             const y = cy + Math.sin(angle) * r;
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
           }
           ctx.closePath();
-          ctx.strokeStyle = pink + 'cc';
-          ctx.lineWidth = 1.5 * dpr;
+          ctx.strokeStyle = micColor;
+          ctx.lineWidth = 1.2 * dpr;
           ctx.stroke();
         }
-
-      } else if (viz === 'lissajous') {
-        // ── Parametric lissajous modulated by audio ───────────────
-        const cx = w / 2;
-        const cy = h / 2;
-        const rx = w * 0.42;
-        const ry = h * 0.42;
-
-        // frequency ratios shift with bands — creates evolving figures
-        const freqX = 2 + Math.round(music.bass * 3);
-        const freqY = 3 + Math.round(music.high * 2);
-        const phase = music.mid * Math.PI;
-        const micPhase = micActive ? mic.overall * Math.PI * 0.5 : 0;
-
-        // sample the full curve
-        const pts = 512;
-        ctx.beginPath();
-        for (let i = 0; i <= pts; i++) {
-          const p = (i / pts) * Math.PI * 2;
-          const x = cx + Math.sin(freqX * p + phase + t * 0.3) * rx * (0.5 + music.overall * 0.5);
-          const y = cy + Math.sin(freqY * p + micPhase + t * 0.15) * ry * (0.5 + music.overall * 0.5);
-          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = micActive ? pink : accent;
-        ctx.lineWidth = 1.5 * dpr;
-        ctx.globalAlpha = 0.85;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        // dot at current parametric position
-        const x = cx + Math.sin(freqX * (t * 0.3 % (Math.PI * 2)) + phase) * rx * (0.5 + music.overall * 0.5);
-        const y = cy + Math.sin(freqY * (t * 0.3 % (Math.PI * 2)) + micPhase) * ry * (0.5 + music.overall * 0.5);
-        ctx.beginPath();
-        ctx.arc(x, y, 3 * dpr, 0, Math.PI * 2);
-        ctx.fillStyle = micActive ? pink : accent;
-        ctx.fill();
       }
 
-      rafRef.current = requestAnimationFrame(loop);
+      rafRef.current = requestAnimationFrame(render);
     }
 
-    rafRef.current = requestAnimationFrame(loop);
+    rafRef.current = requestAnimationFrame(render);
     return () => {
       cancelAnimationFrame(rafRef.current);
-      ro.disconnect();
+      resizeObserver.disconnect();
     };
-  }, [getBands, getFftData, getWaveform, micActive, viz]);
+  }, [getBands, getCustomBands, getFftData, getWaveform, micActive, viz]);
 
-  async function handleTrack(i: number) {
-    setCurrentTrack(i);
+  async function handleTrack(index: number) {
+    setCurrentTrack(index);
     setIsLoading(true);
     try {
-      await loadTrack(TRACKS[i].url);
+      await loadTrack(TRACKS[index].url);
     } finally {
       setIsLoading(false);
     }
@@ -350,215 +336,256 @@ export default function App() {
 
   function handlePlay() {
     if (isLoading) return;
-    if (isPlaying) togglePlayPause();
-    else handleTrack(currentTrack);
+    if (isPlaying) {
+      togglePlayPause();
+      return;
+    }
+    void handleTrack(currentTrack);
   }
 
+  function copyInstall() {
+    navigator.clipboard.writeText('npm install @juandinella/audio-bands');
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  const errorMessage = loadError
+    ? 'Track failed to load or start playback'
+    : micError
+      ? 'Mic permission was denied or the input failed'
+      : null;
+
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <span style={s.pkg}>@juandinella/audio-bands</span>
-        <a href="https://github.com/juandinella/audio-bands" target="_blank" rel="noreferrer" className="header-link">
-          github →
+    <div className="page-shell">
+      <div className="bg-grid" />
+      <header className="topbar">
+        <a className="brand" href="/">
+          <span className="brand-chip">audio-bands</span>
+          <span className="brand-sub">headless browser audio analysis</span>
         </a>
+        <div className="topbar-links">
+          <a href="https://www.npmjs.com/package/@juandinella/audio-bands" target="_blank" rel="noreferrer">npm</a>
+          <a href="https://github.com/juandinella/audio-bands" target="_blank" rel="noreferrer">github</a>
+        </div>
       </header>
 
-      <main style={s.main}>
-        <p style={s.description}>
-          Headless audio frequency analysis for the browser. Get real-time{' '}
-          <span style={s.hi}>bass</span>, <span style={s.hi}>mid</span>, and{' '}
-          <span style={s.hi}>high</span> values normalized to 0–1 from a music
-          track or microphone — simultaneously. No renderer included.
-        </p>
+      <main className="layout">
+        <section className="hero">
+          <div className="hero-copy">
+            <p className="eyebrow">React hook + framework-agnostic core</p>
+            <h1>
+              Audio analysis for the browser.
+            </h1>
+            <p className="lead">
+              Get real-time <span className="lead-accent">bass</span>, <span className="lead-accent-2">mid</span>, <span className="lead-accent">high</span>, custom bands or raw FFT data from a track, a microphone, or both at once. No renderer included.
+            </p>
 
-        <div style={s.installWrap}>
-          <code style={s.installCode}>npm install @juandinella/audio-bands</code>
-          <button style={s.copyBtn} onClick={handleCopy} aria-label={copied ? 'Copied' : 'Copy install command'}>
-            {copied ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="1.5,6 4.5,9 10.5,3" />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="4" width="7" height="7" rx="1" />
-                <path d="M8 4V2.5A1 1 0 0 0 7 1.5H1.5A1 1 0 0 0 0.5 2.5V8A1 1 0 0 0 1.5 9H4" />
-              </svg>
-            )}
-          </button>
-        </div>
+            <div className="cta-row">
+              <button className="cta-primary" onClick={copyInstall}>
+                {copied ? 'copied' : 'copy install'}
+              </button>
+              <code className="install-line">npm install @juandinella/audio-bands</code>
+            </div>
 
-        {/* Viz switcher */}
-        <div style={s.vizTabs}>
-          {VIZS.map(({ key, label }) => (
-            <button
-              key={key}
-              style={{ ...s.vizTab, ...(viz === key ? s.vizTabActive : {}) }}
-              onClick={() => setViz(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+            <div className="feature-row">
+              <div className="feature-card">
+                <strong>Headless</strong>
+                <span>No renderer included. Only usable audio data.</span>
+              </div>
+              <div className="feature-card">
+                <strong>Music + mic</strong>
+                <span>Analyze a track, live input, or both at the same time.</span>
+              </div>
+              <div className="feature-card">
+                <strong>Three levels</strong>
+                <span>`getBands()`, `getCustomBands()`, or `getFftData()`.</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        {/* Canvas */}
-        <canvas ref={canvasRef} style={s.canvas} role="img" aria-label={`${viz} audio frequency visualization`} />
-
-        {/* Controls */}
-        <div style={s.controls}>
-          <button
-            style={{ ...s.btnPlay, opacity: isLoading ? 0.5 : 1 }}
-            onClick={handlePlay}
-            aria-pressed={isPlaying}
-            aria-label={isLoading ? 'loading' : isPlaying ? 'pause' : 'play'}
-            disabled={isLoading}
-          >
-            {isLoading ? 'loading…' : isPlaying ? 'pause' : 'play'}
-          </button>
-
-          <div style={s.selectWrap}>
-            <select
-              style={s.select}
-              value={currentTrack}
-              onChange={(e) => handleTrack(Number(e.target.value))}
-            >
-              {TRACKS.map((t, i) => (
-                <option key={i} value={i}>{t.name} — {t.composer}</option>
+        <section className="demo-panel">
+          <div className="demo-head">
+            <div>
+              <p className="panel-label">live demo</p>
+              <h2>{VIZS.find((item) => item.key === viz)?.detail}</h2>
+            </div>
+            <div className="viz-switch">
+              {VIZS.map((item) => (
+                <button
+                  key={item.key}
+                  className={viz === item.key ? 'viz-btn active' : 'viz-btn'}
+                  onClick={() => setViz(item.key)}
+                >
+                  {item.label}
+                </button>
               ))}
-            </select>
-            <svg style={s.chevron} width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="2,3.5 5,6.5 8,3.5" />
-            </svg>
+            </div>
           </div>
 
-          <button
-            style={{ ...s.btnMic, color: micActive ? 'var(--accent-2)' : 'var(--muted)' }}
-            onClick={toggleMic}
-            aria-pressed={micActive}
-            aria-label={micActive ? 'disable microphone' : 'enable microphone'}
-          >
-            {micActive ? 'mic on' : 'mic'}
-          </button>
-        </div>
+          <canvas className="demo-canvas" ref={canvasRef} />
 
-        {/* Error state */}
-        {audioError && (
-          <div style={s.errorMsg} role="alert">
-            failed to load track — check your connection and try again
+          <div className="controls">
+            <button className="control primary" disabled={isLoading} onClick={handlePlay}>
+              {isLoading ? 'loading…' : isPlaying ? 'pause' : 'play'}
+            </button>
+            <label className="select-wrap">
+              <span>track</span>
+              <select value={currentTrack} onChange={(event) => void handleTrack(Number(event.target.value))}>
+                {TRACKS.map((track, index) => (
+                  <option key={track.name} value={index}>
+                    {track.name} — {track.composer}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className={micActive ? 'control mic active' : 'control mic'} onClick={toggleMic}>
+              {micActive ? 'mic on' : 'toggle mic'}
+            </button>
           </div>
-        )}
 
-        {/* Snippet */}
-        <div style={s.snippetWrap}>
-          <div style={s.snippetHeader}>
-            <span style={s.snippetLabel}>example</span>
-            <span style={s.snippetFile}>visualizer.tsx</span>
+          {errorMessage ? (
+            <div className="error-banner" role="alert">
+              {errorMessage}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="inspector">
+          <div className="section-head">
+            <div>
+              <p className="panel-label">what the library returns</p>
+              <h2>Live values, not just motion.</h2>
+            </div>
+            <p className="section-copy">
+              The visualizer is only a demonstration. The useful part is the data underneath it.
+            </p>
           </div>
-          <pre style={s.snippet}>
-            <span style={s.cMuted}>{'import '}</span>
-            <span style={s.cText}>{'{ useAudioBands }'}</span>
-            <span style={s.cMuted}>{' from '}</span>
-            <span style={s.cAccent}>{`'@juandinella/audio-bands/react'\n\n`}</span>
-            <span style={s.cMuted}>{'const '}</span>
-            <span style={s.cText}>{'{ getBands }'}</span>
-            <span style={s.cMuted}>{' = '}</span>
-            <span style={s.cAccent}>{'useAudioBands'}</span>
-            <span style={s.cText}>{'()\n\n'}</span>
-            <span style={s.cComment}>{'// inside your animation loop:\n'}</span>
-            <span style={s.cMuted}>{'const '}</span>
-            <span style={s.cText}>{'{ bass, mid, high }'}</span>
-            <span style={s.cMuted}>{' = '}</span>
-            <span style={s.cAccent}>{'getBands'}</span>
-            <span style={s.cText}>{"('music')\n"}</span>
-            <span style={s.cMuted}>{'const '}</span>
-            <span style={s.cText}>{'mic'}</span>
-            <span style={s.cMuted}>{' = '}</span>
-            <span style={s.cAccent}>{'getBands'}</span>
-            <span style={s.cText}>{"('mic')"}</span>
-          </pre>
-        </div>
+
+          <div className="metrics-grid">
+            <MetricCard
+              title="getBands()"
+              note="High-level control signals for product UI and simple motion."
+              rows={[
+                ['bass', liveBands.bass],
+                ['mid', liveBands.mid],
+                ['high', liveBands.high],
+                ['overall', liveBands.overall],
+              ]}
+              accent="primary"
+            />
+            <MetricCard
+              title="getCustomBands()"
+              note="Semantic buckets tuned to your own renderer."
+              rows={Object.entries(customBands)}
+              accent="secondary"
+            />
+            <MetricCard
+              title="getState()"
+              note="Useful for UI flow, status labels and error handling."
+              textRows={[
+                ['isPlaying', String(state.isPlaying)],
+                ['hasTrack', String(state.hasTrack)],
+                ['micActive', String(state.micActive)],
+                ['errors', errorMessage ?? 'none'],
+              ]}
+              accent="neutral"
+            />
+            <MetricCard
+              title="FFT peek"
+              note="Bin-level detail for full visualizers."
+              rows={fftPeek.map((value, index) => [`bin ${index}`, value])}
+              accent="neutral"
+            />
+          </div>
+        </section>
+
+        <section className="snippet-panel">
+          <div className="section-head compact">
+            <div>
+              <p className="panel-label">copyable examples</p>
+              <h2>Choose the abstraction level you need.</h2>
+            </div>
+            <div className="snippet-tabs">
+              {(['react', 'vanilla', 'custom'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  className={snippetTab === tab ? 'snippet-tab active' : 'snippet-tab'}
+                  onClick={() => setSnippetTab(tab)}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="snippet-body">
+            <pre>{SNIPPETS[snippetTab]}</pre>
+          </div>
+        </section>
+
+        <section className="explainers">
+          <article className="explainer-card">
+            <p className="panel-label">when to use it</p>
+            <h3>`getBands()`</h3>
+            <p>Use this when you want a stable pulse for UI, layout or motion. Think blobs, buttons, copy emphasis, scene intensity, or typography.</p>
+          </article>
+          <article className="explainer-card">
+            <p className="panel-label">when to use it</p>
+            <h3>`getCustomBands()`</h3>
+            <p>Use this when `bass/mid/high` is too generic. Define buckets like `presence`, `air`, or `sub` and keep your render code semantic.</p>
+          </article>
+          <article className="explainer-card">
+            <p className="panel-label">when to use it</p>
+            <h3>`getFftData()`</h3>
+            <p>Use this when you are drawing a real visualizer: bars, spectrums, log curves, wave fields, particle systems or shaders.</p>
+          </article>
+        </section>
       </main>
     </div>
   );
 }
 
-const s: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', display: 'flex', flexDirection: 'column' },
-  header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '16px 24px', borderBottom: '1px solid var(--border)',
+function MetricCard(
+  props: {
+    title: string;
+    note: string;
+    rows?: Array<[string, number]>;
+    textRows?: Array<[string, string]>;
+    accent: 'primary' | 'secondary' | 'neutral';
   },
-  pkg: { fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em', color: 'var(--muted)' },
-  main: {
-    flex: 1, maxWidth: 640, margin: '0 auto', width: '100%',
-    padding: '64px 24px', display: 'flex', flexDirection: 'column', gap: 24,
-  },
-  description: { fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--muted)', lineHeight: 1.8 },
-  hi: { color: 'var(--accent)' },
-  installWrap: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'var(--accent-tint)', border: '1px solid var(--border)',
-    padding: '10px 16px',
-  },
-  installCode: {
-    fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)',
-  },
-  copyBtn: {
-    background: 'transparent', border: 'none', padding: '10px 12px',
-    minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: 'var(--muted)',
-    transition: 'color 0.15s',
-  },
+) {
+  return (
+    <article className={`metric-card ${props.accent}`}>
+      <div className="metric-head">
+        <h3>{props.title}</h3>
+        <p>{props.note}</p>
+      </div>
 
-  // Viz tabs
-  vizTabs: { display: 'flex', border: '1px solid var(--border)' },
-  vizTab: {
-    flex: 1, fontFamily: 'var(--mono)', fontSize: 10, letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const, background: 'transparent', border: 'none',
-    borderRight: '1px solid var(--border)', padding: '9px 0',
-    color: 'var(--muted)', transition: 'color 0.15s',
-  },
-  vizTabActive: { color: 'var(--accent)' },
+      {props.rows ? (
+        <div className="metric-list">
+          {props.rows.map(([label, value]) => (
+            <div key={label} className="metric-row">
+              <span>{label}</span>
+              <div className="meter">
+                <div className="meter-fill" style={{ transform: `scaleX(${clamp(value)})` }} />
+              </div>
+              <strong>{formatValue(value)}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
-  // Canvas
-  canvas: { width: '100%', height: 280, display: 'block', border: '1px solid var(--border)', borderTop: 'none' },
-
-  // Controls
-  controls: { display: 'flex', border: '1px solid var(--border)' },
-  btnPlay: {
-    fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em',
-    background: 'transparent', border: 'none', borderRight: '1px solid var(--border)',
-    padding: '12px 20px', color: 'var(--accent)',
-  },
-  selectWrap: { flex: 1, position: 'relative' as const, display: 'flex', alignItems: 'center' },
-  select: {
-    fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.06em',
-    background: 'transparent', border: 'none', padding: '12px 36px 12px 16px',
-    color: 'var(--muted)', width: '100%', outline: 'none', appearance: 'none' as const,
-  },
-  chevron: { position: 'absolute' as const, right: 14, color: 'var(--muted)', pointerEvents: 'none' as const },
-  btnMic: {
-    fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.08em',
-    background: 'transparent', border: 'none', borderLeft: '1px solid var(--border)',
-    padding: '12px 20px', transition: 'color 0.15s',
-  },
-
-  // Snippet
-  snippetWrap: { border: '1px solid var(--border)' },
-  snippetHeader: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 16px', borderBottom: '1px solid var(--border)',
-    background: 'var(--surface)',
-  },
-  snippetLabel: { fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: 'rgba(232,230,223,0.45)' },
-  snippetFile: { fontFamily: 'var(--mono)', fontSize: 10, color: 'rgba(232,230,223,0.4)' },
-  snippet: { fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.8, padding: '20px 24px', whiteSpace: 'pre' as const, overflowX: 'auto' as const, margin: 0 },
-  cText: { color: 'var(--text)' },
-  cMuted: { color: 'var(--muted)' },
-  cAccent: { color: 'var(--accent)' },
-  cComment: { color: 'rgba(232,230,223,0.45)', fontStyle: 'italic' as const },
-  errorMsg: {
-    fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.04em',
-    color: 'var(--error)', padding: '10px 16px',
-    border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
-  },
-};
+      {props.textRows ? (
+        <div className="text-list">
+          {props.textRows.map(([label, value]) => (
+            <div key={label} className="text-row">
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
