@@ -14,6 +14,8 @@ export type UseAudioBandsReturn = {
   micError: AudioBandsError | null;
   state: AudioBandsState;
   loadTrack: (url: string) => Promise<void>;
+  play: () => Promise<void>;
+  pause: () => void;
   togglePlayPause: () => void;
   toggleMic: () => Promise<void>;
   getBands: (source?: AudioSource) => Bands;
@@ -81,6 +83,14 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     await instance.current!.load(url);
   }, []);
 
+  const play = useCallback(async () => {
+    await instance.current!.play();
+  }, []);
+
+  const pause = useCallback(() => {
+    instance.current!.pause();
+  }, []);
+
   const togglePlayPause = useCallback(() => {
     instance.current!.togglePlayPause();
   }, []);
@@ -118,6 +128,8 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     micError: state.micError,
     state,
     loadTrack,
+    play,
+    pause,
     togglePlayPause,
     toggleMic,
     getBands,

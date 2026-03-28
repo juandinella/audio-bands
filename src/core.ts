@@ -215,7 +215,7 @@ export class AudioBands {
     try {
       ctx = this.ensureCtx();
     } catch (error) {
-      throw this.handleError('load', error);
+      throw this.handleError('load', error, 'load_error');
     }
 
     this.teardownMusic();
@@ -223,21 +223,34 @@ export class AudioBands {
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
     audio.src = url;
-    audio.loop = true;
     this.audioEl = audio;
     this.setState({ hasTrack: true, loadError: null });
 
     const source = ctx.createMediaElementSource(audio);
     source.connect(this.musicAnalyser!);
     this.musicSource = source;
+  }
+
+  async play(): Promise<void> {
+    const audio = this.audioEl;
+    if (!audio) return;
 
     try {
       await audio.play();
       this.setState({ isPlaying: true, loadError: null });
       this.options.onPlay?.();
     } catch (error) {
-      throw this.handleError('load', error, 'load_error');
+      throw this.handleError('load', error, 'playback_error');
     }
+  }
+
+  pause(): void {
+    const audio = this.audioEl;
+    if (!audio || audio.paused) return;
+
+    audio.pause();
+    this.setState({ isPlaying: false });
+    this.options.onPause?.();
   }
 
   togglePlayPause(): void {
@@ -245,21 +258,13 @@ export class AudioBands {
     if (!audio) return;
 
     if (audio.paused) {
-      void audio
-        .play()
-        .then(() => {
-          this.setState({ isPlaying: true, loadError: null });
-          this.options.onPlay?.();
-        })
-        .catch((error) => {
-          this.handleError('load', error, 'playback_error');
-        });
+      void this.play().catch(() => {
+        /* handled in play */
+      });
       return;
     }
 
-    audio.pause();
-    this.setState({ isPlaying: false });
-    this.options.onPause?.();
+    this.pause();
   }
 
   async enableMic(): Promise<void> {

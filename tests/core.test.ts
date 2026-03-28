@@ -147,6 +147,7 @@ describe('AudioBands', () => {
     });
 
     await audio.load('/track.mp3');
+    await audio.play();
 
     const ctx = MockAudioContext.instances[0];
     const musicAnalyser = ctx.analysers[0];
@@ -206,13 +207,15 @@ describe('AudioBands', () => {
     });
 
     MockAudioElement.nextPlayError = new Error('blocked');
-    await expect(audio.load('/blocked.mp3')).rejects.toBeInstanceOf(AudioBandsError);
+    await audio.load('/blocked.mp3');
+    await expect(audio.play()).rejects.toBeInstanceOf(AudioBandsError);
 
     expect(onLoadError).toHaveBeenCalledTimes(1);
     expect(onMicError).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(1);
     expect(audio.getState().loadError?.kind).toBe('load');
     expect(audio.getState().hasTrack).toBe(true);
+    expect(audio.getState().isPlaying).toBe(false);
 
     mediaDevices.getUserMedia.mockRejectedValue(new Error('denied'));
     await expect(audio.enableMic()).rejects.toBeInstanceOf(AudioBandsError);

@@ -51,6 +51,7 @@ const audio = new AudioBands({
 });
 
 await audio.load('/track.mp3');
+await audio.play();
 
 function loop() {
   const { bass, mid, high, overall } = audio.getBands();
@@ -76,6 +77,8 @@ function Visualizer() {
     loadError,
     micError,
     loadTrack,
+    play,
+    pause,
     togglePlayPause,
     toggleMic,
     getBands,
@@ -89,7 +92,9 @@ function Visualizer() {
   return (
     <>
       <button onClick={() => loadTrack('/track.mp3')}>load</button>
-      <button onClick={togglePlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
+      <button onClick={play}>play</button>
+      <button onClick={pause}>pause</button>
+      <button onClick={togglePlayPause}>toggle</button>
       <button onClick={toggleMic}>Toggle mic</button>
       <pre>{JSON.stringify({ hasTrack, loadError, micError, ...getBands(), ...getCustomBands() }, null, 2)}</pre>
     </>
@@ -147,7 +152,9 @@ new AudioBands(options?: AudioBandsOptions)
 
 | Method                  | Description |
 | ----------------------- | ----------- |
-| `load(url)`             | Load and play a track. Rejects with `AudioBandsError` on failure. |
+| `load(url)`             | Load a track and connect it to the analyser. Rejects with `AudioBandsError` on failure. |
+| `play()`                | Start playback for the current track. Rejects with `AudioBandsError` on failure. |
+| `pause()`               | Pause the current track. |
 | `togglePlayPause()`     | Toggle the current track. |
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
@@ -170,6 +177,8 @@ const {
   micError,
   state,
   loadTrack,
+  play,
+  pause,
   togglePlayPause,
   toggleMic,
   getBands,
@@ -223,6 +232,7 @@ type AudioBandsState = {
 ## Notes
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
+- `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` read live data. Call them inside `requestAnimationFrame`, not from React state updates.

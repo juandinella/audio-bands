@@ -24,6 +24,7 @@ const audio = new AudioBands({
   onLoadError: (error) => console.error(error),
 });
 await audio.load('/track.mp3');
+await audio.play();
 
 function loop() {
   const { bass, mid, high, overall } = audio.getBands();
@@ -41,7 +42,7 @@ audio.destroy(); // clean up when done
 ```tsx
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
-const { loadTrack, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
+const { loadTrack, play, pause, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
 
 // Call getBands / getCustomBands / getFftData / getWaveform inside requestAnimationFrame
 ```
@@ -53,12 +54,14 @@ const { loadTrack, getBands, getCustomBands, getFftData, getWaveform, isPlaying,
 - `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
 - `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
+- `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
 - `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
 
 ## Notes
 
 - `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
+- `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
 - Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency
 

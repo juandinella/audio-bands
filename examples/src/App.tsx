@@ -74,7 +74,7 @@ const VIZS: { key: Viz; label: string }[] = [
 ];
 
 export default function App() {
-  const { isPlaying, micActive, audioError, getBands, getFftData, getWaveform, loadTrack, togglePlayPause, toggleMic } =
+  const { isPlaying, micActive, audioError, getBands, getFftData, getWaveform, loadTrack, play, togglePlayPause, toggleMic } =
     useAudioBands();
 
   const [currentTrack, setCurrentTrack] = useState(0);
@@ -343,6 +343,7 @@ export default function App() {
     setIsLoading(true);
     try {
       await loadTrack(TRACKS[i].url);
+      await play();
     } finally {
       setIsLoading(false);
     }
