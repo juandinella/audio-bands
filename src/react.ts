@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { AudioBands } from './core';
 import type { AudioBandsOptions, AudioBandsState, AudioSource, Bands } from './types';
 import type { AudioBandsError } from './errors';
@@ -32,6 +33,76 @@ const INITIAL_STATE: AudioBandsState = {
   micError: null,
 };
 
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, nestedValue]) => `${JSON.stringify(key)}:${stableStringify(nestedValue)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value) ?? 'null';
+}
+
+function getStructuralOptionsKey(options: AudioBandsOptions): string {
+  return stableStringify({
+    music: options.music,
+    mic: options.mic,
+    bandRanges: options.bandRanges,
+    customBands: options.customBands,
+  });
+}
+
+function createAudioBandsInstance(
+  options: AudioBandsOptions,
+  latestOptions: MutableRefObject<AudioBandsOptions>,
+  setState: Dispatch<SetStateAction<AudioBandsState>>,
+  instanceRef: MutableRefObject<AudioBands | null>,
+): AudioBands {
+  const next = new AudioBands({
+    ...options,
+    onPlay: () => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onPlay?.();
+    },
+    onPause: () => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onPause?.();
+    },
+    onError: (error) => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onError?.(error);
+    },
+    onLoadError: (error) => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onLoadError?.(error);
+    },
+    onMicError: (error) => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onMicError?.(error);
+    },
+    onMicStart: () => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onMicStart?.();
+    },
+    onMicStop: () => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onMicStop?.();
+    },
+    onStateChange: (nextState) => {
+      if (instanceRef.current !== next) return;
+      setState(nextState);
+      latestOptions.current.onStateChange?.(nextState);
+    },
+  });
+
+  return next;
+}
+
 /**
  * React hook — thin wrapper over AudioBands.
  * Handles lifecycle (destroy on unmount) and exposes state for re-renders.
@@ -40,44 +111,30 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   const [state, setState] = useState<AudioBandsState>(INITIAL_STATE);
   const latestOptions = useRef(options);
   const instance = useRef<AudioBands | null>(null);
+  const structuralOptionsKey = getStructuralOptionsKey(options);
+  const structuralOptionsKeyRef = useRef(structuralOptionsKey);
 
   latestOptions.current = options;
 
   if (!instance.current) {
-    instance.current = new AudioBands({
-      ...options,
-      onPlay: () => {
-        latestOptions.current.onPlay?.();
-      },
-      onPause: () => {
-        latestOptions.current.onPause?.();
-      },
-      onError: (error) => {
-        latestOptions.current.onError?.(error);
-      },
-      onLoadError: (error) => {
-        latestOptions.current.onLoadError?.(error);
-      },
-      onMicError: (error) => {
-        latestOptions.current.onMicError?.(error);
-      },
-      onMicStart: () => {
-        latestOptions.current.onMicStart?.();
-      },
-      onMicStop: () => {
-        latestOptions.current.onMicStop?.();
-      },
-      onStateChange: (nextState) => {
-        setState(nextState);
-        latestOptions.current.onStateChange?.(nextState);
-      },
-    });
+    instance.current = createAudioBandsInstance(options, latestOptions, setState, instance);
   }
 
   useEffect(() => {
     setState(instance.current!.getState());
     return () => instance.current?.destroy();
   }, []);
+
+  useEffect(() => {
+    if (structuralOptionsKeyRef.current === structuralOptionsKey) return;
+
+    const previous = instance.current;
+    const next = createAudioBandsInstance(options, latestOptions, setState, instance);
+    instance.current = next;
+    structuralOptionsKeyRef.current = structuralOptionsKey;
+    setState(next.getState());
+    previous?.destroy();
+  }, [options, structuralOptionsKey]);
 
   const loadTrack = useCallback(async (url: string) => {
     await instance.current!.load(url);

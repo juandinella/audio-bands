@@ -62,6 +62,7 @@ const { loadTrack, play, pause, getBands, getCustomBands, getFftData, getWavefor
 
 - `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
 - `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
+- In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance
 - Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency
 

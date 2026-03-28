@@ -234,6 +234,7 @@ type AudioBandsState = {
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
 - `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
+- In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` read live data. Call them inside `requestAnimationFrame`, not from React state updates.
 - `getFftData()` returns the same underlying buffer on each call. Copy it if you need frame-to-frame comparisons.
