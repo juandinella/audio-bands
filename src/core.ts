@@ -177,6 +177,7 @@ export class AudioBands {
     micActive: false,
     hasTrack: false,
     loadError: null,
+    playbackError: null,
     micError: null,
   };
 
@@ -227,7 +228,7 @@ export class AudioBands {
     audio.src = url;
     audio.loop = this.trackLoop;
     this.audioEl = audio;
-    this.setState({ hasTrack: true, loadError: null });
+    this.setState({ hasTrack: true, loadError: null, playbackError: null });
 
     const source = ctx.createMediaElementSource(audio);
     source.connect(this.musicAnalyser!);
@@ -240,7 +241,7 @@ export class AudioBands {
 
     try {
       await audio.play();
-      this.setState({ isPlaying: true, loadError: null });
+      this.setState({ isPlaying: true, playbackError: null });
       this.options.onPlay?.();
     } catch (error) {
       throw this.handleError('playback', error, 'playback_error');
@@ -495,10 +496,12 @@ export class AudioBands {
             error,
           );
 
-    if (kind === 'load' || kind === 'playback') {
+    if (kind === 'load') {
       this.setState({ isPlaying: false, loadError: wrapped });
       this.options.onLoadError?.(wrapped);
-      if (kind === 'playback') this.options.onPlaybackError?.(wrapped);
+    } else if (kind === 'playback') {
+      this.setState({ isPlaying: false, playbackError: wrapped });
+      this.options.onPlaybackError?.(wrapped);
     } else {
       this.setState({ micActive: false, micError: wrapped });
       this.options.onMicError?.(wrapped);
@@ -541,6 +544,10 @@ export class AudioBands {
     this.musicWaveformData = this.musicAnalyser
       ? new Uint8Array(this.musicAnalyser.fftSize) as Uint8Array<ArrayBuffer>
       : null;
-    this.setState({ isPlaying: false, hasTrack: false });
+    this.setState({
+      isPlaying: false,
+      hasTrack: false,
+      playbackError: null,
+    });
   }
 }

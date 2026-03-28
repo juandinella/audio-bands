@@ -13,6 +13,7 @@ vi.mock('../src/core', () => {
       micActive: false,
       hasTrack: false,
       loadError: null,
+      playbackError: null,
       micError: null,
     };
 

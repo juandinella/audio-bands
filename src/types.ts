@@ -49,6 +49,7 @@ export type AudioBandsState = {
   micActive: boolean;
   hasTrack: boolean;
   loadError: AudioBandsError | null;
+  playbackError: AudioBandsError | null;
   micError: AudioBandsError | null;
 };
 

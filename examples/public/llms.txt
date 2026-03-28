@@ -1,6 +1,6 @@
 # @juandinella/audio-bands
 
-Headless audio analysis library for the browser. Returns normalized low/mid/high analyser regions, custom named bands, raw FFT bins, and time-domain waveform data without shipping a renderer.
+Headless audio analysis library for the browser. Returns a consistent frame of low/mid/high analyser regions, custom named bands, raw FFT bins, and time-domain waveform data without shipping a renderer.
 
 ## Install
 
@@ -27,10 +27,10 @@ await audio.load('/track.mp3');
 await audio.play();
 
 function loop() {
-  const { bass, mid, high, overall } = audio.getBands();
-  const custom = audio.getCustomBands();
-  const fft = audio.getFftData(); // Uint8Array(128) — raw frequency bins
-  const frame = audio.snapshot(); // bands + customBands + fft + waveform from one read
+  const frame = audio.snapshot(); // preferred: one coherent analysis frame
+  const { bass, mid, high, overall } = frame.bands;
+  const custom = frame.customBands;
+  const fft = frame.fft; // Uint8Array(128) — raw frequency bins
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -59,6 +59,7 @@ const {
   isPlaying,
   micActive,
   loadError,
+  playbackError,
   micError,
 } = useAudioBands();
 
@@ -67,12 +68,12 @@ const {
 
 ## Key API
 
+- `snapshot(source?)` — preferred analysis read; returns `{ bands, customBands, fft, waveform }` from one analyser read
 - `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
 - `bass` / `mid` / `high` are coarse analyser regions, not fixed Hz bands; `overall` is a simple UI-oriented weighted summary
 - `getCustomBands(source?)` — returns normalized values for configured custom bands
 - `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
 - `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
-- `snapshot(source?)` — returns `{ bands, customBands, fft, waveform }` from one analyser read
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
 - `setLoop(loop)` / `seek(seconds)` / `getDuration()` / `getCurrentTime()` — basic track transport helpers
@@ -83,7 +84,7 @@ const {
 
 - `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
 - `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
-- Playback failures surface through `loadError` with `kind: 'playback'` and `code: 'playback_error'`
+- `loadError` is for track loading failures; `playbackError` is for play rejections such as autoplay policy
 - In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance
 - Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency

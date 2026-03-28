@@ -230,12 +230,13 @@ describe('AudioBands', () => {
     await audio.load('/blocked.mp3');
     await expect(audio.play()).rejects.toBeInstanceOf(AudioBandsError);
 
-    expect(onLoadError).toHaveBeenCalledTimes(1);
+    expect(onLoadError).not.toHaveBeenCalled();
     expect(onPlaybackError).toHaveBeenCalledTimes(1);
     expect(onMicError).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(1);
-    expect(audio.getState().loadError?.kind).toBe('playback');
-    expect(audio.getState().loadError?.code).toBe('playback_error');
+    expect(audio.getState().loadError).toBeNull();
+    expect(audio.getState().playbackError?.kind).toBe('playback');
+    expect(audio.getState().playbackError?.code).toBe('playback_error');
     expect(audio.getState().hasTrack).toBe(true);
     expect(audio.getState().isPlaying).toBe(false);
 
@@ -265,5 +266,34 @@ describe('AudioBands', () => {
     });
     expect(() => audio.seek(-1)).toThrowError(AudioBandsError);
     expect(onStateChange).toHaveBeenCalled();
+  });
+
+  it('returns empty analysis before sources are ready and resets playback errors on new load', async () => {
+    const audio = new AudioBands({
+      customBands: {
+        presence: { from: 0.25, to: 0.5 },
+      },
+    });
+
+    expect(audio.getBands()).toEqual({ bass: 0, mid: 0, high: 0, overall: 0 });
+    expect(audio.getCustomBands()).toEqual({ presence: 0 });
+    expect(audio.getFftData()).toBeNull();
+    expect(audio.getWaveform()).toBeNull();
+    expect(audio.snapshot()).toEqual({
+      bands: { bass: 0, mid: 0, high: 0, overall: 0 },
+      customBands: { presence: 0 },
+      fft: null,
+      waveform: null,
+    });
+
+    MockAudioElement.nextPlayError = new Error('blocked');
+    await audio.load('/blocked.mp3');
+    await expect(audio.play()).rejects.toBeInstanceOf(AudioBandsError);
+    expect(audio.getState().playbackError?.code).toBe('playback_error');
+
+    await audio.load('/fresh.mp3');
+    expect(audio.getState().playbackError).toBeNull();
+    expect(audio.getState().loadError).toBeNull();
+    expect(audio.getState().hasTrack).toBe(true);
   });
 });

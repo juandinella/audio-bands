@@ -18,6 +18,7 @@ export type UseAudioBandsReturn = {
   hasTrack: boolean;
   audioError: boolean;
   loadError: AudioBandsError | null;
+  playbackError: AudioBandsError | null;
   micError: AudioBandsError | null;
   state: AudioBandsState;
   loadTrack: (url: string) => Promise<void>;
@@ -41,6 +42,7 @@ const INITIAL_STATE: AudioBandsState = {
   micActive: false,
   hasTrack: false,
   loadError: null,
+  playbackError: null,
   micError: null,
 };
 
@@ -215,8 +217,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     isPlaying: state.isPlaying,
     micActive: state.micActive,
     hasTrack: state.hasTrack,
-    audioError: Boolean(state.loadError || state.micError),
+    audioError: Boolean(state.loadError || state.playbackError || state.micError),
     loadError: state.loadError,
+    playbackError: state.playbackError,
     micError: state.micError,
     state,
     loadTrack,

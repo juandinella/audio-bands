@@ -4,18 +4,20 @@
 
 **Demo**: [audio-bands.juandinella.com](https://audio-bands.juandinella.com)
 
-Headless audio analysis for the browser. Get normalized low/mid/high energy regions, custom named bands, raw FFT bins, or time-domain waveform data without shipping a renderer.
+Headless audio analysis for the browser. Read a consistent frame of low/mid/high energy regions, custom named bands, raw FFT bins, and waveform data without shipping a renderer.
 
 ```ts
-const { bass, mid, high } = audio.getBands();
-const custom = audio.getCustomBands();
-const fft = audio.getFftData();
 const frame = audio.snapshot();
+const { bass, mid, high } = frame.bands;
+const custom = frame.customBands;
+const fft = frame.fft;
 ```
 
 ## Why
 
 Most audio libraries either only play audio or immediately draw a canvas for you. This one stays lower level: it gives you usable analysis data and lets you decide how to render it.
+
+The intended center of the API is `snapshot()`: one call, one coherent analysis frame.
 
 ## Install
 
@@ -55,10 +57,11 @@ await audio.load('/track.mp3');
 await audio.play();
 
 function loop() {
-  const { bass, mid, high, overall } = audio.getBands();
-  const custom = audio.getCustomBands();
-  const fft = audio.getFftData();
-  const waveform = audio.getWaveform();
+  const frame = audio.snapshot();
+  const { bass, mid, high, overall } = frame.bands;
+  const custom = frame.customBands;
+  const fft = frame.fft;
+  const waveform = frame.waveform;
 
   requestAnimationFrame(loop);
 }
@@ -76,6 +79,7 @@ function Visualizer() {
     isPlaying,
     hasTrack,
     loadError,
+    playbackError,
     micError,
     loadTrack,
     play,
@@ -109,6 +113,7 @@ function Visualizer() {
       <pre>{JSON.stringify({
         hasTrack,
         loadError,
+        playbackError,
         micError,
         duration: getDuration(),
         currentTime: getCurrentTime(),
@@ -143,7 +148,13 @@ const waveform = audio.getWaveform('mic');
 
 Use these values as stable control signals for interaction and motion. If you need tighter semantic control, define `customBands`. If you need physically meaningful bin-level data, use `getFftData()` or `snapshot()`.
 
-Use `getBands()` when you want stable, simple control signals:
+Use `snapshot()` first when you need a full analysis frame:
+
+- read `bands`, `customBands`, `fft`, and `waveform` together
+- avoid multiple analyser reads in one render loop
+- keep derived values synchronized
+
+Use `getBands()` when you only want stable, simple control signals:
 
 - pulsing a blob with low-end energy
 - scaling UI based on overall intensity
@@ -168,12 +179,6 @@ Rule of thumb:
 - `getBands()` for product UI
 - `getCustomBands()` for art direction
 - `getFftData()` for visualizers
-
-Use `snapshot()` when you need multiple views of the same frame:
-
-- read `bands`, `customBands`, `fft`, and `waveform` together
-- avoid multiple analyser reads in one render loop
-- keep derived values synchronized
 
 ## API
 
@@ -214,6 +219,7 @@ const {
   hasTrack,
   audioError,
   loadError,
+  playbackError,
   micError,
   state,
   loadTrack,
@@ -271,6 +277,7 @@ type AudioBandsState = {
   micActive: boolean;
   hasTrack: boolean; // a track source is assigned, even if playback later fails
   loadError: AudioBandsError | null;
+  playbackError: AudioBandsError | null;
   micError: AudioBandsError | null;
 };
 ```
@@ -280,11 +287,12 @@ type AudioBandsState = {
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
 - `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
-- `loadError` stores both load failures and playback failures for the current track. Playback failures use `kind: 'playback'` and `code: 'playback_error'`.
+- `loadError` stores track loading failures only.
+- `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.
 - In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
-- `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` read live data. Call them inside `requestAnimationFrame`, not from React state updates.
-- `snapshot()` is the preferred way to read multiple analysis outputs in the same frame.
+- `snapshot()` is the preferred way to read analysis inside `requestAnimationFrame`.
+- `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` are convenience reads when you only need one view of the current frame.
 - `getFftData()` returns the same underlying buffer on each call. Copy it if you need frame-to-frame comparisons.
 - `fftSize` must be a power of two between `32` and `32768`.
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.
