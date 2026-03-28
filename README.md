@@ -199,7 +199,7 @@ new AudioBands(options?: AudioBandsOptions)
 | `seek(seconds)`         | Seek the current track to a given time in seconds. |
 | `getDuration()`         | Returns the current track duration in seconds, or `null` when unavailable. |
 | `getCurrentTime()`      | Returns the current playback time in seconds, or `null` when unavailable. |
-| `togglePlayPause()`     | Toggle the current track. |
+| `togglePlayPause()`     | Toggle the current track. Returns a promise and propagates playback errors when toggling into play. |
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
 | `snapshot(source?)`     | Returns `{ bands, customBands, fft, waveform }` from a single analyser read. |
@@ -286,6 +286,7 @@ type AudioBandsState = {
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
 - `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
+- `togglePlayPause()` follows the same playback error contract as `play()`: if toggling into play fails, the returned promise rejects.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
 - `loadError` stores track loading failures only.
 - `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.

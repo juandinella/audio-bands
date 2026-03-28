@@ -257,14 +257,12 @@ export class AudioBands {
     this.options.onPause?.();
   }
 
-  togglePlayPause(): void {
+  async togglePlayPause(): Promise<void> {
     const audio = this.audioEl;
     if (!audio) return;
 
     if (audio.paused) {
-      void this.play().catch(() => {
-        /* handled in play */
-      });
+      await this.play();
       return;
     }
 

@@ -77,6 +77,7 @@ const {
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
 - `setLoop(loop)` / `seek(seconds)` / `getDuration()` / `getCurrentTime()` — basic track transport helpers
+- `togglePlayPause()` is async and rejects if switching into playback fails
 - `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
 

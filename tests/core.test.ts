@@ -296,4 +296,14 @@ describe('AudioBands', () => {
     expect(audio.getState().loadError).toBeNull();
     expect(audio.getState().hasTrack).toBe(true);
   });
+
+  it('makes togglePlayPause follow the same async playback contract as play', async () => {
+    const audio = new AudioBands();
+
+    await audio.load('/blocked.mp3');
+    MockAudioElement.nextPlayError = new Error('blocked');
+
+    await expect(audio.togglePlayPause()).rejects.toBeInstanceOf(AudioBandsError);
+    expect(audio.getState().playbackError?.code).toBe('playback_error');
+  });
 });

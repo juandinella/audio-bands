@@ -28,7 +28,7 @@ export type UseAudioBandsReturn = {
   seek: (seconds: number) => void;
   getDuration: () => number | null;
   getCurrentTime: () => number | null;
-  togglePlayPause: () => void;
+  togglePlayPause: () => Promise<void>;
   toggleMic: () => Promise<void>;
   snapshot: (source?: AudioSource) => AudioBandsSnapshot;
   getBands: (source?: AudioSource) => Bands;
@@ -181,8 +181,8 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     return instance.current!.getCurrentTime();
   }, []);
 
-  const togglePlayPause = useCallback(() => {
-    instance.current!.togglePlayPause();
+  const togglePlayPause = useCallback(async () => {
+    await instance.current!.togglePlayPause();
   }, []);
 
   const toggleMic = useCallback(async () => {

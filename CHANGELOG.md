@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.5.0 - 2026-03-28
+
+### Added
+
+- `snapshot(source?)` as the preferred one-call analysis read for bands, custom bands, FFT data, and waveform data.
+- Basic track transport helpers: `play()`, `pause()`, `setLoop()`, `seek()`, `getDuration()`, and `getCurrentTime()`.
+- Hook test coverage for structural option changes, latest callback closures, state synchronization, error forwarding, and unmount cleanup.
+
+### Changed
+
+- `load()` now prepares a track without starting playback.
+- `togglePlayPause()` now follows the same async contract as `play()` and rejects when playback fails.
+- React hook instances are recreated when structural analyser options change.
+- Documentation now centers the package around headless analysis, with `snapshot()` as the primary read path.
+- Clarified the semantics of `bass`, `mid`, `high`, and `overall` as analyser/UI signals rather than physical loudness metrics.
+
+### Fixed
+
+- Split track load failures from playback failures in state with separate `loadError` and `playbackError` fields.
+- Playback failures now surface consistently as `kind: 'playback'` / `code: 'playback_error'`.
+- Expanded core tests around empty analysis reads, playback error reset behavior, and async toggle playback behavior.
+
 ## 0.4.0 - 2026-03-27
 
 ### Added
