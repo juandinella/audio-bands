@@ -1,10 +1,10 @@
 import type { AudioBandsError } from './errors';
 
 export type Bands = {
-  bass: number; // 0–1, low frequencies
-  mid: number; // 0–1, mid frequencies
-  high: number; // 0–1, high frequencies
-  overall: number; // 0–1, weighted mix (bass×0.5 + mid×0.3 + high×0.2)
+  bass: number; // 0–1, low-end analyser region energy
+  mid: number; // 0–1, mid analyser region energy
+  high: number; // 0–1, high-end analyser region energy
+  overall: number; // 0–1, UI-oriented weighted mix (bass×0.5 + mid×0.3 + high×0.2)
 };
 
 export type AudioBandsSnapshot = {

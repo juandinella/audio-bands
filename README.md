@@ -4,7 +4,7 @@
 
 **Demo**: [audio-bands.juandinella.com](https://audio-bands.juandinella.com)
 
-Headless audio analysis for the browser. Get normalized `bass`, `mid`, `high`, custom named bands, raw FFT bins, or time-domain waveform data without shipping a renderer.
+Headless audio analysis for the browser. Get normalized low/mid/high energy regions, custom named bands, raw FFT bins, or time-domain waveform data without shipping a renderer.
 
 ```ts
 const { bass, mid, high } = audio.getBands();
@@ -118,6 +118,17 @@ const waveform = audio.getWaveform('mic');
 
 ## When To Use Bands Vs FFT
 
+## What `bass`, `mid`, `high`, and `overall` Mean
+
+`getBands()` returns three coarse analyser regions plus a convenience summary value:
+
+- `bass`, `mid`, and `high` are normalized slices of the analyser spectrum, not fixed acoustic bands in Hz
+- the default split is percentage-based (`0-0.08`, `0.08-0.4`, `0.4-1`) over the available FFT bins
+- those regions therefore depend on analyser resolution and the underlying audio context sample rate
+- `overall` is a UI-oriented weighted summary (`bass * 0.5 + mid * 0.3 + high * 0.2`), not a perceptual loudness metric
+
+Use these values as stable control signals for interaction and motion. If you need tighter semantic control, define `customBands`. If you need physically meaningful bin-level data, use `getFftData()` or `snapshot()`.
+
 Use `getBands()` when you want stable, simple control signals:
 
 - pulsing a blob with low-end energy
@@ -169,7 +180,7 @@ new AudioBands(options?: AudioBandsOptions)
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
 | `snapshot(source?)`     | Returns `{ bands, customBands, fft, waveform }` from a single analyser read. |
-| `getBands(source?)`     | Returns normalized `{ bass, mid, high, overall }`. |
+| `getBands(source?)`     | Returns normalized analyser-region energy `{ bass, mid, high, overall }`. |
 | `getCustomBands(source?)` | Returns normalized values for configured custom bands. |
 | `getFftData(source?)`   | Returns raw `Uint8Array` frequency bins. |
 | `getWaveform(source?)`  | Returns raw time-domain data for `'music'` or `'mic'`. |
@@ -253,6 +264,8 @@ type AudioBandsState = {
 - `getFftData()` returns the same underlying buffer on each call. Copy it if you need frame-to-frame comparisons.
 - `fftSize` must be a power of two between `32` and `32768`.
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.
+- The default `bass` / `mid` / `high` labels are convenience names for analyser regions, not fixed Hz buckets.
+- `overall` is intended as a simple UI summary, not as an acoustically weighted loudness value.
 
 ## License
 
