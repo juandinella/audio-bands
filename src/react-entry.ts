@@ -7,6 +7,7 @@ export type {
   AudioBandsErrorCode,
   AudioBandsErrorKind,
   AudioBandsOptions,
+  AudioBandsSnapshot,
   AudioBandsState,
   AudioSource,
   BandRange,

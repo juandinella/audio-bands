@@ -2,6 +2,7 @@ import { AudioBandsError } from './errors';
 import type {
   AudioAnalyserConfig,
   AudioBandsOptions,
+  AudioBandsSnapshot,
   AudioBandsState,
   AudioSource,
   BandRange,
@@ -336,6 +337,20 @@ export class AudioBands {
 
   getWaveform(source: AudioSource = 'music'): Uint8Array<ArrayBuffer> | null {
     return this.readWaveformData(source);
+  }
+
+  snapshot(source: AudioSource = 'music'): AudioBandsSnapshot {
+    const fft = this.readFrequencyData(source);
+    const waveform = this.readWaveformData(source);
+
+    return {
+      bands: fft ? computeBands(fft, this.classicRanges) : { ...ZERO },
+      customBands: fft
+        ? computeCustomBands(fft, this.customBandRanges)
+        : computeCustomBands(new Uint8Array(1) as Uint8Array<ArrayBuffer>, this.customBandRanges),
+      fft,
+      waveform,
+    };
   }
 
   destroy(): void {

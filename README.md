@@ -10,6 +10,7 @@ Headless audio analysis for the browser. Get normalized `bass`, `mid`, `high`, c
 const { bass, mid, high } = audio.getBands();
 const custom = audio.getCustomBands();
 const fft = audio.getFftData();
+const frame = audio.snapshot();
 ```
 
 ## Why
@@ -79,6 +80,7 @@ function Visualizer() {
     loadTrack,
     play,
     pause,
+    snapshot,
     togglePlayPause,
     toggleMic,
     getBands,
@@ -89,6 +91,8 @@ function Visualizer() {
     },
   });
 
+  const frame = snapshot();
+
   return (
     <>
       <button onClick={() => loadTrack('/track.mp3')}>load</button>
@@ -96,7 +100,7 @@ function Visualizer() {
       <button onClick={pause}>pause</button>
       <button onClick={togglePlayPause}>toggle</button>
       <button onClick={toggleMic}>Toggle mic</button>
-      <pre>{JSON.stringify({ hasTrack, loadError, micError, ...getBands(), ...getCustomBands() }, null, 2)}</pre>
+      <pre>{JSON.stringify({ hasTrack, loadError, micError, ...frame.bands, ...frame.customBands }, null, 2)}</pre>
     </>
   );
 }
@@ -140,6 +144,12 @@ Rule of thumb:
 - `getCustomBands()` for art direction
 - `getFftData()` for visualizers
 
+Use `snapshot()` when you need multiple views of the same frame:
+
+- read `bands`, `customBands`, `fft`, and `waveform` together
+- avoid multiple analyser reads in one render loop
+- keep derived values synchronized
+
 ## API
 
 ### `AudioBands`
@@ -158,6 +168,7 @@ new AudioBands(options?: AudioBandsOptions)
 | `togglePlayPause()`     | Toggle the current track. |
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
+| `snapshot(source?)`     | Returns `{ bands, customBands, fft, waveform }` from a single analyser read. |
 | `getBands(source?)`     | Returns normalized `{ bass, mid, high, overall }`. |
 | `getCustomBands(source?)` | Returns normalized values for configured custom bands. |
 | `getFftData(source?)`   | Returns raw `Uint8Array` frequency bins. |
@@ -181,6 +192,7 @@ const {
   pause,
   togglePlayPause,
   toggleMic,
+  snapshot,
   getBands,
   getCustomBands,
   getFftData,
@@ -237,6 +249,7 @@ type AudioBandsState = {
 - In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` read live data. Call them inside `requestAnimationFrame`, not from React state updates.
+- `snapshot()` is the preferred way to read multiple analysis outputs in the same frame.
 - `getFftData()` returns the same underlying buffer on each call. Copy it if you need frame-to-frame comparisons.
 - `fftSize` must be a power of two between `32` and `32768`.
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.

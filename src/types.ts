@@ -7,6 +7,13 @@ export type Bands = {
   overall: number; // 0–1, weighted mix (bass×0.5 + mid×0.3 + high×0.2)
 };
 
+export type AudioBandsSnapshot = {
+  bands: Bands;
+  customBands: Record<string, number>;
+  fft: Uint8Array<ArrayBuffer> | null;
+  waveform: Uint8Array<ArrayBuffer> | null;
+};
+
 export type AudioSource = 'music' | 'mic';
 
 export type AudioBandsErrorKind = 'load' | 'mic' | 'lifecycle' | 'config';

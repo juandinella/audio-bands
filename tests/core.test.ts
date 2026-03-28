@@ -168,6 +168,11 @@ describe('AudioBands', () => {
     expect(customBands.presence).toBeCloseTo(128 / 255, 4);
     expect(customBands.air).toBeCloseTo(0, 4);
 
+    const snapshot = audio.snapshot();
+    expect(snapshot.fft).toEqual(musicData);
+    expect(snapshot.bands).toEqual(bands);
+    expect(snapshot.customBands).toEqual(customBands);
+
     const musicWaveform = new Uint8Array(512);
     musicWaveform.fill(127);
     musicWaveform[0] = 10;
@@ -177,6 +182,7 @@ describe('AudioBands', () => {
     expect(audio.getWaveform()).toEqual(musicWaveform);
     expect(audio.getWaveform('music')).toEqual(musicWaveform);
     expect(audio.getWaveform('mic')).toBeNull();
+    expect(audio.snapshot().waveform).toEqual(musicWaveform);
 
     await audio.enableMic();
 
@@ -191,6 +197,7 @@ describe('AudioBands', () => {
     micAnalyser.waveformData = micWaveform as Uint8Array<ArrayBuffer>;
 
     expect(audio.getWaveform('mic')).toEqual(micWaveform);
+    expect(audio.snapshot('mic').waveform).toEqual(micWaveform);
   });
 
   it('tracks separate load and mic errors and cleans up lifecycle resources', async () => {

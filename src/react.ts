@@ -3,7 +3,13 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { AudioBands } from './core';
-import type { AudioBandsOptions, AudioBandsState, AudioSource, Bands } from './types';
+import type {
+  AudioBandsOptions,
+  AudioBandsSnapshot,
+  AudioBandsState,
+  AudioSource,
+  Bands,
+} from './types';
 import type { AudioBandsError } from './errors';
 
 export type UseAudioBandsReturn = {
@@ -19,6 +25,7 @@ export type UseAudioBandsReturn = {
   pause: () => void;
   togglePlayPause: () => void;
   toggleMic: () => Promise<void>;
+  snapshot: (source?: AudioSource) => AudioBandsSnapshot;
   getBands: (source?: AudioSource) => Bands;
   getCustomBands: (source?: AudioSource) => Record<string, number>;
   getFftData: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
@@ -160,6 +167,10 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     }
   }, []);
 
+  const snapshot = useCallback((source?: AudioSource) => {
+    return instance.current!.snapshot(source);
+  }, []);
+
   const getBands = useCallback((source?: AudioSource) => {
     return instance.current!.getBands(source);
   }, []);
@@ -189,6 +200,7 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     pause,
     togglePlayPause,
     toggleMic,
+    snapshot,
     getBands,
     getCustomBands,
     getFftData,

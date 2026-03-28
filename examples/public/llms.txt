@@ -30,6 +30,7 @@ function loop() {
   const { bass, mid, high, overall } = audio.getBands();
   const custom = audio.getCustomBands();
   const fft = audio.getFftData(); // Uint8Array(128) — raw frequency bins
+  const frame = audio.snapshot(); // bands + customBands + fft + waveform from one read
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -42,7 +43,7 @@ audio.destroy(); // clean up when done
 ```tsx
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
-const { loadTrack, play, pause, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
+const { loadTrack, play, pause, snapshot, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
 
 // Call getBands / getCustomBands / getFftData / getWaveform inside requestAnimationFrame
 ```
@@ -53,6 +54,7 @@ const { loadTrack, play, pause, getBands, getCustomBands, getFftData, getWavefor
 - `getCustomBands(source?)` — returns normalized values for configured custom bands
 - `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
 - `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
+- `snapshot(source?)` — returns `{ bands, customBands, fft, waveform }` from one analyser read
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
 - `getState()` — returns playback, mic, and error state
