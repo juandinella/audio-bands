@@ -23,6 +23,10 @@ export type UseAudioBandsReturn = {
   loadTrack: (url: string) => Promise<void>;
   play: () => Promise<void>;
   pause: () => void;
+  setLoop: (loop: boolean) => void;
+  seek: (seconds: number) => void;
+  getDuration: () => number | null;
+  getCurrentTime: () => number | null;
   togglePlayPause: () => void;
   toggleMic: () => Promise<void>;
   snapshot: (source?: AudioSource) => AudioBandsSnapshot;
@@ -87,6 +91,10 @@ function createAudioBandsInstance(
     onLoadError: (error) => {
       if (instanceRef.current !== next) return;
       latestOptions.current.onLoadError?.(error);
+    },
+    onPlaybackError: (error) => {
+      if (instanceRef.current !== next) return;
+      latestOptions.current.onPlaybackError?.(error);
     },
     onMicError: (error) => {
       if (instanceRef.current !== next) return;
@@ -155,6 +163,22 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     instance.current!.pause();
   }, []);
 
+  const setLoop = useCallback((loop: boolean) => {
+    instance.current!.setLoop(loop);
+  }, []);
+
+  const seek = useCallback((seconds: number) => {
+    instance.current!.seek(seconds);
+  }, []);
+
+  const getDuration = useCallback(() => {
+    return instance.current!.getDuration();
+  }, []);
+
+  const getCurrentTime = useCallback(() => {
+    return instance.current!.getCurrentTime();
+  }, []);
+
   const togglePlayPause = useCallback(() => {
     instance.current!.togglePlayPause();
   }, []);
@@ -198,6 +222,10 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     loadTrack,
     play,
     pause,
+    setLoop,
+    seek,
+    getDuration,
+    getCurrentTime,
     togglePlayPause,
     toggleMic,
     snapshot,

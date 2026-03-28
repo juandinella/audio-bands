@@ -83,6 +83,8 @@ class MockAudioElement {
   src = '';
   crossOrigin: string | null = null;
   loop = false;
+  duration = 180;
+  currentTime = 0;
   paused = true;
   play = vi.fn(async () => {
     if (MockAudioElement.nextPlayError) {
@@ -173,6 +175,15 @@ describe('AudioBands', () => {
     expect(snapshot.bands).toEqual(bands);
     expect(snapshot.customBands).toEqual(customBands);
 
+    expect(audio.getDuration()).toBe(180);
+    expect(audio.getCurrentTime()).toBe(0);
+    audio.seek(12.5);
+    expect(audio.getCurrentTime()).toBe(12.5);
+    audio.seek(999);
+    expect(audio.getCurrentTime()).toBe(180);
+    audio.setLoop(true);
+    expect(MockAudioElement.instances[0].loop).toBe(true);
+
     const musicWaveform = new Uint8Array(512);
     musicWaveform.fill(127);
     musicWaveform[0] = 10;
@@ -203,12 +214,14 @@ describe('AudioBands', () => {
   it('tracks separate load and mic errors and cleans up lifecycle resources', async () => {
     const onError = vi.fn();
     const onLoadError = vi.fn();
+    const onPlaybackError = vi.fn();
     const onMicError = vi.fn();
     const onStateChange = vi.fn();
 
     const audio = new AudioBands({
       onError,
       onLoadError,
+      onPlaybackError,
       onMicError,
       onStateChange,
     });
@@ -218,9 +231,11 @@ describe('AudioBands', () => {
     await expect(audio.play()).rejects.toBeInstanceOf(AudioBandsError);
 
     expect(onLoadError).toHaveBeenCalledTimes(1);
+    expect(onPlaybackError).toHaveBeenCalledTimes(1);
     expect(onMicError).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(1);
-    expect(audio.getState().loadError?.kind).toBe('load');
+    expect(audio.getState().loadError?.kind).toBe('playback');
+    expect(audio.getState().loadError?.code).toBe('playback_error');
     expect(audio.getState().hasTrack).toBe(true);
     expect(audio.getState().isPlaying).toBe(false);
 
@@ -248,6 +263,7 @@ describe('AudioBands', () => {
     await expect(audio.load('/after-destroy.mp3')).rejects.toMatchObject({
       code: 'destroyed',
     });
+    expect(() => audio.seek(-1)).toThrowError(AudioBandsError);
     expect(onStateChange).toHaveBeenCalled();
   });
 });

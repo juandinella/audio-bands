@@ -191,6 +191,7 @@ export class AudioBands {
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
+  private trackLoop = false;
   private destroyed = false;
 
   constructor(options: AudioBandsOptions = {}) {
@@ -224,6 +225,7 @@ export class AudioBands {
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
     audio.src = url;
+    audio.loop = this.trackLoop;
     this.audioEl = audio;
     this.setState({ hasTrack: true, loadError: null });
 
@@ -241,7 +243,7 @@ export class AudioBands {
       this.setState({ isPlaying: true, loadError: null });
       this.options.onPlay?.();
     } catch (error) {
-      throw this.handleError('load', error, 'playback_error');
+      throw this.handleError('playback', error, 'playback_error');
     }
   }
 
@@ -266,6 +268,36 @@ export class AudioBands {
     }
 
     this.pause();
+  }
+
+  setLoop(loop: boolean): void {
+    this.trackLoop = loop;
+    if (this.audioEl) this.audioEl.loop = loop;
+  }
+
+  seek(seconds: number): void {
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      throw new AudioBandsError(
+        'config',
+        'invalid_config',
+        'seek time must be a finite number greater than or equal to 0',
+      );
+    }
+
+    if (!this.audioEl) return;
+
+    const duration = Number.isFinite(this.audioEl.duration) ? this.audioEl.duration : null;
+    this.audioEl.currentTime = duration === null ? seconds : Math.min(seconds, duration);
+  }
+
+  getDuration(): number | null {
+    if (!this.audioEl) return null;
+    return Number.isFinite(this.audioEl.duration) ? this.audioEl.duration : null;
+  }
+
+  getCurrentTime(): number | null {
+    if (!this.audioEl) return null;
+    return Number.isFinite(this.audioEl.currentTime) ? this.audioEl.currentTime : null;
   }
 
   async enableMic(): Promise<void> {
@@ -441,11 +473,13 @@ export class AudioBands {
   }
 
   private handleError(
-    kind: 'load' | 'mic',
+    kind: 'load' | 'playback' | 'mic',
     error: unknown,
     fallbackCode: 'load_error' | 'playback_error' | 'mic_error' = kind === 'mic'
       ? 'mic_error'
-      : 'load_error',
+      : kind === 'playback'
+        ? 'playback_error'
+        : 'load_error',
   ): AudioBandsError {
     const wrapped =
       error instanceof AudioBandsError
@@ -455,13 +489,16 @@ export class AudioBands {
             fallbackCode,
             kind === 'mic'
               ? 'Failed to access microphone input'
-              : 'Failed to load or play audio track',
+              : kind === 'playback'
+                ? 'Failed to play audio track'
+                : 'Failed to load audio track',
             error,
           );
 
-    if (kind === 'load') {
+    if (kind === 'load' || kind === 'playback') {
       this.setState({ isPlaying: false, loadError: wrapped });
       this.options.onLoadError?.(wrapped);
+      if (kind === 'playback') this.options.onPlaybackError?.(wrapped);
     } else {
       this.setState({ micActive: false, micError: wrapped });
       this.options.onMicError?.(wrapped);

@@ -80,6 +80,10 @@ function Visualizer() {
     loadTrack,
     play,
     pause,
+    setLoop,
+    seek,
+    getDuration,
+    getCurrentTime,
     snapshot,
     togglePlayPause,
     toggleMic,
@@ -98,9 +102,19 @@ function Visualizer() {
       <button onClick={() => loadTrack('/track.mp3')}>load</button>
       <button onClick={play}>play</button>
       <button onClick={pause}>pause</button>
+      <button onClick={() => setLoop(true)}>loop</button>
+      <button onClick={() => seek(30)}>seek 0:30</button>
       <button onClick={togglePlayPause}>toggle</button>
       <button onClick={toggleMic}>Toggle mic</button>
-      <pre>{JSON.stringify({ hasTrack, loadError, micError, ...frame.bands, ...frame.customBands }, null, 2)}</pre>
+      <pre>{JSON.stringify({
+        hasTrack,
+        loadError,
+        micError,
+        duration: getDuration(),
+        currentTime: getCurrentTime(),
+        ...frame.bands,
+        ...frame.customBands,
+      }, null, 2)}</pre>
     </>
   );
 }
@@ -176,6 +190,10 @@ new AudioBands(options?: AudioBandsOptions)
 | `load(url)`             | Load a track and connect it to the analyser. Rejects with `AudioBandsError` on failure. |
 | `play()`                | Start playback for the current track. Rejects with `AudioBandsError` on failure. |
 | `pause()`               | Pause the current track. |
+| `setLoop(loop)`         | Set whether the current and future loaded tracks should loop. |
+| `seek(seconds)`         | Seek the current track to a given time in seconds. |
+| `getDuration()`         | Returns the current track duration in seconds, or `null` when unavailable. |
+| `getCurrentTime()`      | Returns the current playback time in seconds, or `null` when unavailable. |
 | `togglePlayPause()`     | Toggle the current track. |
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
@@ -201,6 +219,10 @@ const {
   loadTrack,
   play,
   pause,
+  setLoop,
+  seek,
+  getDuration,
+  getCurrentTime,
   togglePlayPause,
   toggleMic,
   snapshot,
@@ -231,6 +253,7 @@ type AudioBandsOptions = {
   customBands?: Record<string, { from: number; to: number }>;
   onError?: (error: AudioBandsError) => void;
   onLoadError?: (error: AudioBandsError) => void;
+  onPlaybackError?: (error: AudioBandsError) => void;
   onMicError?: (error: AudioBandsError) => void;
   onStateChange?: (state: AudioBandsState) => void;
   onPlay?: () => void;
@@ -257,6 +280,7 @@ type AudioBandsState = {
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
 - `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
+- `loadError` stores both load failures and playback failures for the current track. Playback failures use `kind: 'playback'` and `code: 'playback_error'`.
 - In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` read live data. Call them inside `requestAnimationFrame`, not from React state updates.

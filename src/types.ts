@@ -16,7 +16,7 @@ export type AudioBandsSnapshot = {
 
 export type AudioSource = 'music' | 'mic';
 
-export type AudioBandsErrorKind = 'load' | 'mic' | 'lifecycle' | 'config';
+export type AudioBandsErrorKind = 'load' | 'playback' | 'mic' | 'lifecycle' | 'config';
 
 export type AudioBandsErrorCode =
   | 'load_error'
@@ -57,6 +57,7 @@ export type AudioBandsCallbacks = {
   onPause?: () => void;
   onError?: (error: AudioBandsError) => void;
   onLoadError?: (error: AudioBandsError) => void;
+  onPlaybackError?: (error: AudioBandsError) => void;
   onMicError?: (error: AudioBandsError) => void;
   onMicStart?: () => void;
   onMicStop?: () => void;

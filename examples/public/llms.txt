@@ -43,7 +43,24 @@ audio.destroy(); // clean up when done
 ```tsx
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
-const { loadTrack, play, pause, snapshot, getBands, getCustomBands, getFftData, getWaveform, isPlaying, micActive, loadError, micError } = useAudioBands();
+const {
+  loadTrack,
+  play,
+  pause,
+  setLoop,
+  seek,
+  getDuration,
+  getCurrentTime,
+  snapshot,
+  getBands,
+  getCustomBands,
+  getFftData,
+  getWaveform,
+  isPlaying,
+  micActive,
+  loadError,
+  micError,
+} = useAudioBands();
 
 // Call getBands / getCustomBands / getFftData / getWaveform inside requestAnimationFrame
 ```
@@ -58,6 +75,7 @@ const { loadTrack, play, pause, snapshot, getBands, getCustomBands, getFftData, 
 - `snapshot(source?)` — returns `{ bands, customBands, fft, waveform }` from one analyser read
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
+- `setLoop(loop)` / `seek(seconds)` / `getDuration()` / `getCurrentTime()` — basic track transport helpers
 - `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
 
@@ -65,6 +83,7 @@ const { loadTrack, play, pause, snapshot, getBands, getCustomBands, getFftData, 
 
 - `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
 - `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
+- Playback failures surface through `loadError` with `kind: 'playback'` and `code: 'playback_error'`
 - In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance
 - Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency
