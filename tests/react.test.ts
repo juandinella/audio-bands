@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { StrictMode, createElement } from 'react';
+import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +23,7 @@ vi.mock('../src/core', () => {
     static nextPlayError: MockAudioBandsError | null = null;
 
     readonly options: any;
+    destroyed = false;
     readonly state = {
       isPlaying: false,
       micActive: false,
@@ -35,9 +38,25 @@ vi.mock('../src/core', () => {
       MockAudioBands.instances.push(this);
     }
 
-    getState = vi.fn(() => ({ ...this.state }));
-    load = vi.fn(async () => undefined);
+    private ensureNotDestroyed() {
+      if (this.destroyed) {
+        throw new MockAudioBandsError(
+          'lifecycle',
+          'destroyed',
+          'This AudioBands instance was destroyed',
+        );
+      }
+    }
+
+    getState = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return { ...this.state };
+    });
+    load = vi.fn(async () => {
+      this.ensureNotDestroyed();
+    });
     play = vi.fn(async () => {
+      this.ensureNotDestroyed();
       if (MockAudioBands.nextPlayError) {
         const error = MockAudioBands.nextPlayError;
         MockAudioBands.nextPlayError = null;
@@ -54,28 +73,62 @@ vi.mock('../src/core', () => {
       this.options.onStateChange?.({ ...this.state });
     });
     pause = vi.fn(() => {
+      this.ensureNotDestroyed();
       this.state.isPlaying = false;
       this.options.onPause?.();
       this.options.onStateChange?.({ ...this.state });
     });
-    togglePlayPause = vi.fn(() => undefined);
-    enableMic = vi.fn(async () => undefined);
-    disableMic = vi.fn(() => undefined);
-    setLoop = vi.fn(() => undefined);
-    seek = vi.fn(() => undefined);
-    getDuration = vi.fn(() => 123);
-    getCurrentTime = vi.fn(() => 45);
-    snapshot = vi.fn(() => ({
-      bands: { bass: 0, mid: 0, high: 0, overall: 0 },
-      customBands: {},
-      fft: null,
-      waveform: null,
-    }));
-    getBands = vi.fn(() => ({ bass: 0, mid: 0, high: 0, overall: 0 }));
-    getCustomBands = vi.fn(() => ({}));
-    getFftData = vi.fn(() => null);
-    getWaveform = vi.fn(() => null);
-    destroy = vi.fn(() => undefined);
+    togglePlayPause = vi.fn(async () => {
+      this.ensureNotDestroyed();
+    });
+    enableMic = vi.fn(async () => {
+      this.ensureNotDestroyed();
+    });
+    disableMic = vi.fn(() => {
+      this.ensureNotDestroyed();
+    });
+    setLoop = vi.fn(() => {
+      this.ensureNotDestroyed();
+    });
+    seek = vi.fn(() => {
+      this.ensureNotDestroyed();
+    });
+    getDuration = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return 123;
+    });
+    getCurrentTime = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return 45;
+    });
+    snapshot = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return {
+        bands: { bass: 0, mid: 0, high: 0, overall: 0 },
+        customBands: {},
+        fft: null,
+        waveform: null,
+      };
+    });
+    getBands = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return { bass: 0, mid: 0, high: 0, overall: 0 };
+    });
+    getCustomBands = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return {};
+    });
+    getFftData = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return null;
+    });
+    getWaveform = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return null;
+    });
+    destroy = vi.fn(() => {
+      this.destroyed = true;
+    });
   }
 
   return { AudioBands: MockAudioBands, AudioBandsError: MockAudioBandsError };
@@ -88,6 +141,7 @@ const MockAudioBands = AudioBands as unknown as {
   nextPlayError: InstanceType<typeof AudioBandsError> | null;
   instances: Array<{
     destroy: ReturnType<typeof vi.fn>;
+    load: ReturnType<typeof vi.fn>;
     play: ReturnType<typeof vi.fn>;
     togglePlayPause: ReturnType<typeof vi.fn>;
     setLoop: ReturnType<typeof vi.fn>;
@@ -222,5 +276,26 @@ describe('useAudioBands', () => {
     });
 
     expect(instance.togglePlayPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('recreates a usable instance after StrictMode cleanup cycles', async () => {
+    MockAudioBands.instances.length = 0;
+    MockAudioBands.nextPlayError = null;
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      createElement(StrictMode, null, children)
+    );
+
+    const { result } = renderHook(() => useAudioBands(), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.loadTrack('/track.mp3')).resolves.toBeUndefined();
+    });
+
+    expect(
+      MockAudioBands.instances.some(
+        (instance) => !instance.destroyed && instance.load.mock.calls.length > 0,
+      ),
+    ).toBe(true);
   });
 });

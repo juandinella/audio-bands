@@ -133,13 +133,26 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
 
   latestOptions.current = options;
 
-  if (!instance.current) {
-    instance.current = createAudioBandsInstance(options, latestOptions, setState, instance);
-  }
+  const getOrCreateInstance = (): AudioBands => {
+    if (instance.current) return instance.current;
+
+    const next = createAudioBandsInstance(options, latestOptions, setState, instance);
+    instance.current = next;
+    structuralOptionsKeyRef.current = structuralOptionsKey;
+    return next;
+  };
+
+  getOrCreateInstance();
 
   useEffect(() => {
-    setState(instance.current!.getState());
-    return () => instance.current?.destroy();
+    const current = getOrCreateInstance();
+    setState(current.getState());
+
+    return () => {
+      if (instance.current !== current) return;
+      current.destroy();
+      instance.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -154,63 +167,64 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   }, [options, structuralOptionsKey]);
 
   const loadTrack = useCallback(async (url: string) => {
-    await instance.current!.load(url);
+    await getOrCreateInstance().load(url);
   }, []);
 
   const play = useCallback(async () => {
-    await instance.current!.play();
+    await getOrCreateInstance().play();
   }, []);
 
   const pause = useCallback(() => {
-    instance.current!.pause();
+    getOrCreateInstance().pause();
   }, []);
 
   const setLoop = useCallback((loop: boolean) => {
-    instance.current!.setLoop(loop);
+    getOrCreateInstance().setLoop(loop);
   }, []);
 
   const seek = useCallback((seconds: number) => {
-    instance.current!.seek(seconds);
+    getOrCreateInstance().seek(seconds);
   }, []);
 
   const getDuration = useCallback(() => {
-    return instance.current!.getDuration();
+    return getOrCreateInstance().getDuration();
   }, []);
 
   const getCurrentTime = useCallback(() => {
-    return instance.current!.getCurrentTime();
+    return getOrCreateInstance().getCurrentTime();
   }, []);
 
   const togglePlayPause = useCallback(async () => {
-    await instance.current!.togglePlayPause();
+    await getOrCreateInstance().togglePlayPause();
   }, []);
 
   const toggleMic = useCallback(async () => {
-    if (instance.current!.getState().micActive) {
-      instance.current!.disableMic();
+    const current = getOrCreateInstance();
+    if (current.getState().micActive) {
+      current.disableMic();
     } else {
-      await instance.current!.enableMic();
+      await current.enableMic();
     }
   }, []);
 
   const snapshot = useCallback((source?: AudioSource) => {
-    return instance.current!.snapshot(source);
+    return getOrCreateInstance().snapshot(source);
   }, []);
 
   const getBands = useCallback((source?: AudioSource) => {
-    return instance.current!.getBands(source);
+    return getOrCreateInstance().getBands(source);
   }, []);
 
   const getCustomBands = useCallback((source?: AudioSource) => {
-    return instance.current!.getCustomBands(source);
+    return getOrCreateInstance().getCustomBands(source);
   }, []);
 
   const getFftData = useCallback((source?: AudioSource) => {
-    return instance.current!.getFftData(source);
+    return getOrCreateInstance().getFftData(source);
   }, []);
 
   const getWaveform = useCallback((source?: AudioSource) => {
-    return instance.current!.getWaveform(source);
+    return getOrCreateInstance().getWaveform(source);
   }, []);
 
   return {

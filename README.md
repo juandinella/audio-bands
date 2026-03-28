@@ -33,6 +33,8 @@ npm install @juandinella/audio-bands
 
 If you use the React hook, install `react` as well.
 
+Minimal reference examples live in [examples/README.md](/Users/juandinella/use-audio-bands/examples/README.md). The Vite app in `examples/src/App.tsx` is a showcase demo, while `examples/snippets/` contains the smallest copyable integrations.
+
 ## Usage
 
 ### Vanilla JS
