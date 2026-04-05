@@ -1,23 +1,26 @@
-name: Publish to npm
+name: Release Check
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       ref:
-        description: Git tag or commit to publish
+        description: Git ref to verify
         required: true
+        default: main
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref }}
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -34,5 +37,3 @@ jobs:
       - run: npm run test:browser
 
       - run: npm run test:release
-
-      - run: npm publish --access public

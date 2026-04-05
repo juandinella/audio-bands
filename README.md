@@ -308,7 +308,9 @@ type AudioBandsState = {
 ## Development
 
 - `npm test` builds the package and runs the unit suite.
-- Releases are published from GitHub Actions when a `v*` tag is pushed.
+- `npm run test:browser` runs the browser smoke suite against the built bundles.
+- `npm run test:release` packs the library and verifies the published tarball shape from a temporary consumer app.
+- Push a `v*` tag to run the release-check workflow, then use the manual `Publish to npm` GitHub Actions workflow against that verified ref.
 
 ## License
 

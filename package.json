@@ -53,6 +53,7 @@
     "test": "npm run build && vitest run tests/package.test.ts tests/core.test.ts tests/react.test.ts",
     "test:browser": "npm run build && playwright test",
     "test:browser:serve": "vite --config tests/browser/vite.config.ts --host 127.0.0.1 --port 4173",
+    "test:release": "node scripts/release-check.mjs",
     "prepack": "npm run build"
   },
   "peerDependencies": {
