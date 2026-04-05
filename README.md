@@ -33,7 +33,7 @@ npm install @juandinella/audio-bands
 
 If you use the React hook, install `react` as well.
 
-Minimal reference examples live in [examples/README.md](/Users/juandinella/use-audio-bands/examples/README.md). The Vite app in `examples/src/App.tsx` is a showcase demo, while `examples/snippets/` contains the smallest copyable integrations.
+Minimal reference examples live in [`examples/README.md`](./examples/README.md). The Vite app in `examples/src/App.tsx` is a showcase demo, while `examples/snippets/` contains the smallest copyable integrations.
 
 ## Usage
 
@@ -301,6 +301,11 @@ type AudioBandsState = {
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.
 - The default `bass` / `mid` / `high` labels are convenience names for analyser regions, not fixed Hz buckets.
 - `overall` is intended as a simple UI summary, not as an acoustically weighted loudness value.
+
+## Development
+
+- `npm test` builds the package and runs the unit suite.
+- Releases are published from GitHub Actions when a `v*` tag is pushed.
 
 ## License
 
