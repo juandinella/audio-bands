@@ -290,6 +290,7 @@ type AudioBandsState = {
 - `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
 - `togglePlayPause()` follows the same playback error contract as `play()`: if toggling into play fails, the returned promise rejects.
 - `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
+- `isPlaying` follows the underlying media element events, so it falls back to `false` when the track pauses or reaches `ended`.
 - `loadError` stores track loading failures only.
 - `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.
 - In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.

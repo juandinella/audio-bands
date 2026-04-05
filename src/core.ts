@@ -192,6 +192,7 @@ export class AudioBands {
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
+  private musicEventCleanup: (() => void) | null = null;
   private trackLoop = false;
   private destroyed = false;
 
@@ -227,6 +228,7 @@ export class AudioBands {
     audio.crossOrigin = 'anonymous';
     audio.src = url;
     audio.loop = this.trackLoop;
+    this.bindMusicElementEvents(audio);
     this.audioEl = audio;
     this.setState({ hasTrack: true, loadError: null, playbackError: null });
 
@@ -241,8 +243,7 @@ export class AudioBands {
 
     try {
       await audio.play();
-      this.setState({ isPlaying: true, playbackError: null });
-      this.options.onPlay?.();
+      this.setState({ playbackError: null });
     } catch (error) {
       throw this.handleError('playback', error, 'playback_error');
     }
@@ -253,8 +254,6 @@ export class AudioBands {
     if (!audio || audio.paused) return;
 
     audio.pause();
-    this.setState({ isPlaying: false });
-    this.options.onPause?.();
   }
 
   async togglePlayPause(): Promise<void> {
@@ -509,6 +508,38 @@ export class AudioBands {
     return wrapped;
   }
 
+  private bindMusicElementEvents(audio: HTMLAudioElement): void {
+    this.musicEventCleanup?.();
+
+    const handlePlay = () => {
+      if (this.audioEl !== audio) return;
+      this.setState({ isPlaying: true, playbackError: null });
+      this.options.onPlay?.();
+    };
+
+    const handlePause = () => {
+      if (this.audioEl !== audio) return;
+      this.setState({ isPlaying: false });
+      this.options.onPause?.();
+    };
+
+    const handleEnded = () => {
+      if (this.audioEl !== audio) return;
+      this.setState({ isPlaying: false });
+    };
+
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    this.musicEventCleanup = () => {
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      if (this.musicEventCleanup) this.musicEventCleanup = null;
+    };
+  }
+
   private setState(patch: Partial<AudioBandsState>): void {
     let changed = false;
 
@@ -525,6 +556,7 @@ export class AudioBands {
   }
 
   private teardownMusic(): void {
+    this.musicEventCleanup?.();
     this.audioEl?.pause();
     if (this.audioEl) {
       this.audioEl.src = '';

@@ -86,6 +86,7 @@ class MockAudioElement {
   duration = 180;
   currentTime = 0;
   paused = true;
+  private readonly listeners = new Map<string, Set<(event?: Event) => void>>();
   play = vi.fn(async () => {
     if (MockAudioElement.nextPlayError) {
       const error = MockAudioElement.nextPlayError;
@@ -93,14 +94,40 @@ class MockAudioElement {
       throw error;
     }
     this.paused = false;
+    this.emit('play');
   });
   pause = vi.fn(() => {
     this.paused = true;
+    this.emit('pause');
   });
   load = vi.fn();
 
   constructor() {
     MockAudioElement.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+    const handler =
+      typeof listener === 'function'
+        ? listener
+        : listener.handleEvent.bind(listener);
+    const listeners = this.listeners.get(type) ?? new Set();
+    listeners.add(handler);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+    const handler =
+      typeof listener === 'function'
+        ? listener
+        : listener.handleEvent.bind(listener);
+    this.listeners.get(type)?.delete(handler);
+  }
+
+  emit(type: string, event?: Event): void {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
   }
 }
 
@@ -295,6 +322,46 @@ describe('AudioBands', () => {
     expect(audio.getState().playbackError).toBeNull();
     expect(audio.getState().loadError).toBeNull();
     expect(audio.getState().hasTrack).toBe(true);
+  });
+
+  it('keeps playback state synchronized with media element events', async () => {
+    const onPlay = vi.fn();
+    const onPause = vi.fn();
+    const audio = new AudioBands({ onPlay, onPause });
+
+    await audio.load('/track.mp3');
+    const element = MockAudioElement.instances[0];
+
+    await audio.play();
+    expect(audio.getState().isPlaying).toBe(true);
+    expect(onPlay).toHaveBeenCalledTimes(1);
+
+    element.emit('ended');
+    expect(audio.getState().isPlaying).toBe(false);
+
+    element.paused = false;
+    audio.pause();
+    expect(audio.getState().isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('detaches old media listeners when loading a replacement track', async () => {
+    const audio = new AudioBands();
+
+    await audio.load('/first.mp3');
+    const first = MockAudioElement.instances[0];
+    await audio.play();
+    expect(audio.getState().isPlaying).toBe(true);
+
+    await audio.load('/second.mp3');
+    const second = MockAudioElement.instances[1];
+    expect(audio.getState().isPlaying).toBe(false);
+
+    first.emit('play');
+    expect(audio.getState().isPlaying).toBe(false);
+
+    second.emit('play');
+    expect(audio.getState().isPlaying).toBe(true);
   });
 
   it('makes togglePlayPause follow the same async playback contract as play', async () => {
