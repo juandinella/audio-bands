@@ -192,6 +192,8 @@ export class AudioBands {
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
+  private pendingLoadCleanup: (() => void) | null = null;
+  private pendingLoadReject: ((error: AudioBandsError) => void) | null = null;
   private trackLoop = false;
   private destroyed = false;
 
@@ -225,14 +227,52 @@ export class AudioBands {
 
     const audio = new Audio();
     audio.crossOrigin = 'anonymous';
+    audio.preload = 'auto';
     audio.src = url;
     audio.loop = this.trackLoop;
     this.audioEl = audio;
-    this.setState({ hasTrack: true, loadError: null, playbackError: null });
+    this.setState({ hasTrack: false, loadError: null, playbackError: null });
 
     const source = ctx.createMediaElementSource(audio);
     source.connect(this.musicAnalyser!);
     this.musicSource = source;
+
+    await new Promise<void>((resolve, reject) => {
+      const finalize = () => {
+        cleanup();
+        this.pendingLoadCleanup = null;
+        this.pendingLoadReject = null;
+      };
+
+      const handleReady = () => {
+        finalize();
+        this.setState({ hasTrack: true, loadError: null });
+        resolve();
+      };
+
+      const handleFailure = (event?: Event) => {
+        finalize();
+        const mediaError =
+          (event?.target as HTMLMediaElement | null)?.error ??
+          audio.error ??
+          event;
+        reject(this.handleLoadFailure(mediaError));
+      };
+
+      const cleanup = () => {
+        audio.removeEventListener('loadedmetadata', handleReady);
+        audio.removeEventListener('canplay', handleReady);
+        audio.removeEventListener('error', handleFailure);
+      };
+
+      this.pendingLoadCleanup = cleanup;
+      this.pendingLoadReject = reject;
+
+      audio.addEventListener('loadedmetadata', handleReady, { once: true });
+      audio.addEventListener('canplay', handleReady, { once: true });
+      audio.addEventListener('error', handleFailure, { once: true });
+      audio.load();
+    });
   }
 
   async play(): Promise<void> {
@@ -509,6 +549,11 @@ export class AudioBands {
     return wrapped;
   }
 
+  private handleLoadFailure(error: unknown): AudioBandsError {
+    this.teardownMusic();
+    return this.handleError('load', error, 'load_error');
+  }
+
   private setState(patch: Partial<AudioBandsState>): void {
     let changed = false;
 
@@ -525,6 +570,23 @@ export class AudioBands {
   }
 
   private teardownMusic(): void {
+    if (this.pendingLoadReject) {
+      const reject = this.pendingLoadReject;
+      this.pendingLoadReject = null;
+      this.pendingLoadCleanup?.();
+      this.pendingLoadCleanup = null;
+      reject(
+        new AudioBandsError(
+          'load',
+          'load_error',
+          'Audio track loading was interrupted before completion',
+        ),
+      );
+    } else if (this.pendingLoadCleanup) {
+      this.pendingLoadCleanup();
+      this.pendingLoadCleanup = null;
+    }
+
     this.audioEl?.pause();
     if (this.audioEl) {
       this.audioEl.src = '';
