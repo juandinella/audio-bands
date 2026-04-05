@@ -97,9 +97,11 @@ class MockAudioElement {
       throw error;
     }
     this.paused = false;
+    this.emit('play');
   });
   pause = vi.fn(() => {
     this.paused = true;
+    this.emit('pause');
   });
   load = vi.fn(() => {
     queueMicrotask(() => {
@@ -109,12 +111,12 @@ class MockAudioElement {
         const error = MockAudioElement.nextLoadError;
         MockAudioElement.nextLoadError = null;
         this.error = error;
-        this.dispatch('error', { target: this } as Event);
+        this.emit('error', { target: this } as Event);
         return;
       }
 
-      this.dispatch('loadedmetadata', { target: this } as Event);
-      this.dispatch('canplay', { target: this } as Event);
+      this.emit('loadedmetadata', { target: this } as Event);
+      this.emit('canplay', { target: this } as Event);
     });
   });
 
@@ -140,7 +142,7 @@ class MockAudioElement {
     this.listeners.get(type)?.delete(handler);
   }
 
-  private dispatch(type: string, event?: Event): void {
+  emit(type: string, event?: Event): void {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event);
     }
@@ -346,6 +348,46 @@ describe('AudioBands', () => {
     expect(audio.getState().playbackError).toBeNull();
     expect(audio.getState().loadError).toBeNull();
     expect(audio.getState().hasTrack).toBe(true);
+  });
+
+  it('keeps playback state synchronized with media element events', async () => {
+    const onPlay = vi.fn();
+    const onPause = vi.fn();
+    const audio = new AudioBands({ onPlay, onPause });
+
+    await audio.load('/track.mp3');
+    const element = MockAudioElement.instances[0];
+
+    await audio.play();
+    expect(audio.getState().isPlaying).toBe(true);
+    expect(onPlay).toHaveBeenCalledTimes(1);
+
+    element.emit('ended');
+    expect(audio.getState().isPlaying).toBe(false);
+
+    element.paused = false;
+    audio.pause();
+    expect(audio.getState().isPlaying).toBe(false);
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it('detaches old media listeners when loading a replacement track', async () => {
+    const audio = new AudioBands();
+
+    await audio.load('/first.mp3');
+    const first = MockAudioElement.instances[0];
+    await audio.play();
+    expect(audio.getState().isPlaying).toBe(true);
+
+    await audio.load('/second.mp3');
+    const second = MockAudioElement.instances[1];
+    expect(audio.getState().isPlaying).toBe(false);
+
+    first.emit('play');
+    expect(audio.getState().isPlaying).toBe(false);
+
+    second.emit('play');
+    expect(audio.getState().isPlaying).toBe(true);
   });
 
   it('keeps hasTrack false until the track is actually ready', async () => {
