@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.6.2 - 2026-04-05
+
+### Fixed
+
+- Pinned the publish workflow to `npm@11.5.1`, the minimum version npm documents for trusted publishing, instead of relying on the runner's bundled npm.
+- Removed the explicit `--provenance` flag from `npm publish` because provenance is generated automatically for trusted publishing on GitHub Actions.
+
 ## 0.6.1 - 2026-04-05
 
 ### Fixed

@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@juandinella/audio-bands": "^0.6.1",
+    "@juandinella/audio-bands": "^0.6.2",
     "@vercel/analytics": "^2.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
