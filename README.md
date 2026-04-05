@@ -194,7 +194,7 @@ new AudioBands(options?: AudioBandsOptions)
 
 | Method                  | Description |
 | ----------------------- | ----------- |
-| `load(url)`             | Load a track and connect it to the analyser. Rejects with `AudioBandsError` on failure. |
+| `load(url)`             | Load a track, connect it to the analyser, and resolve when the media is ready. Rejects with `AudioBandsError` on load failure. |
 | `play()`                | Start playback for the current track. Rejects with `AudioBandsError` on failure. |
 | `pause()`               | Pause the current track. |
 | `setLoop(loop)`         | Set whether the current and future loaded tracks should loop. |
@@ -287,9 +287,9 @@ type AudioBandsState = {
 ## Notes
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
-- `load()` prepares the current track but does not start playback. Call `play()` or `togglePlayPause()` after loading.
+- `load()` prepares the current track but does not start playback. It resolves only after the media is ready enough for duration/seek reads to be meaningful, then you can call `play()` or `togglePlayPause()`.
 - `togglePlayPause()` follows the same playback error contract as `play()`: if toggling into play fails, the returned promise rejects.
-- `hasTrack` means a track source is currently assigned to the instance. It can still be `true` if `play()` fails due to autoplay policy or another playback error.
+- `hasTrack` means the current track finished loading and is ready on the instance. It can still be `true` if `play()` fails later due to autoplay policy or another playback error.
 - `isPlaying` follows the underlying media element events, so it falls back to `false` when the track pauses or reaches `ended`.
 - `loadError` stores track loading failures only.
 - `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.

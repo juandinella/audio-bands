@@ -79,13 +79,16 @@ class MockAudioContext {
 class MockAudioElement {
   static instances: MockAudioElement[] = [];
   static nextPlayError: unknown = null;
+  static nextLoadError: unknown = null;
 
   src = '';
   crossOrigin: string | null = null;
+  preload = '';
   loop = false;
   duration = 180;
   currentTime = 0;
   paused = true;
+  error: unknown = null;
   private readonly listeners = new Map<string, Set<(event?: Event) => void>>();
   play = vi.fn(async () => {
     if (MockAudioElement.nextPlayError) {
@@ -100,7 +103,22 @@ class MockAudioElement {
     this.paused = true;
     this.emit('pause');
   });
-  load = vi.fn();
+  load = vi.fn(() => {
+    queueMicrotask(() => {
+      if (this.src === '') return;
+
+      if (MockAudioElement.nextLoadError) {
+        const error = MockAudioElement.nextLoadError;
+        MockAudioElement.nextLoadError = null;
+        this.error = error;
+        this.emit('error', { target: this } as Event);
+        return;
+      }
+
+      this.emit('loadedmetadata', { target: this } as Event);
+      this.emit('canplay', { target: this } as Event);
+    });
+  });
 
   constructor() {
     MockAudioElement.instances.push(this);
@@ -139,6 +157,7 @@ beforeEach(() => {
   MockAudioContext.instances = [];
   MockAudioElement.instances = [];
   MockAudioElement.nextPlayError = null;
+  MockAudioElement.nextLoadError = null;
   mediaDevices.getUserMedia.mockReset();
 
   vi.stubGlobal('Audio', MockAudioElement);
@@ -158,7 +177,7 @@ beforeEach(() => {
 });
 
 describe('AudioBands', () => {
-  it('supports configurable analysers and custom band ranges', async () => {
+  it('supports configurable analysers and custom band ranges after load readiness', async () => {
     mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
 
     const audio = new AudioBands({
@@ -267,6 +286,13 @@ describe('AudioBands', () => {
     expect(audio.getState().hasTrack).toBe(true);
     expect(audio.getState().isPlaying).toBe(false);
 
+    MockAudioElement.nextLoadError = new Error('network');
+    await expect(audio.load('/missing.mp3')).rejects.toBeInstanceOf(AudioBandsError);
+    expect(onLoadError).toHaveBeenCalledTimes(1);
+    expect(audio.getState().loadError?.kind).toBe('load');
+    expect(audio.getState().loadError?.code).toBe('load_error');
+    expect(audio.getState().hasTrack).toBe(false);
+
     mediaDevices.getUserMedia.mockRejectedValue(new Error('denied'));
     await expect(audio.enableMic()).rejects.toBeInstanceOf(AudioBandsError);
 
@@ -362,6 +388,16 @@ describe('AudioBands', () => {
 
     second.emit('play');
     expect(audio.getState().isPlaying).toBe(true);
+  });
+
+  it('keeps hasTrack false until the track is actually ready', async () => {
+    const audio = new AudioBands();
+
+    const loading = audio.load('/track.mp3');
+    expect(audio.getState().hasTrack).toBe(false);
+
+    await loading;
+    expect(audio.getState().hasTrack).toBe(true);
   });
 
   it('makes togglePlayPause follow the same async playback contract as play', async () => {
