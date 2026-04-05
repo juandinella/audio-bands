@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.6.0 - 2026-04-05
+
+### Added
+
+- Browser smoke coverage with Playwright to validate the built core and React bundles in a real Chromium runtime.
+
+### Changed
+
+- `isPlaying` now follows real media-element events, including pause and natural track end.
+- README and package metadata were polished for public consumption, including valid repository links and explicit development/release notes.
+
+### Fixed
+
+- `load()` now resolves when the media is actually ready instead of resolving immediately after wiring the element.
+- Real track loading failures now surface through `loadError` with state that reflects whether a usable track is present.
+- Playwright test artifacts are now ignored in git so local browser runs do not dirty the worktree.
+
 ## 0.5.0 - 2026-03-28
 
 ### Added
