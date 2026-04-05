@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.6.1 - 2026-04-05
+
+### Fixed
+
+- Removed the npm self-update step from the publish workflow so GitHub Actions can publish reliably with the npm version bundled by `actions/setup-node`.
+
 ## 0.6.0 - 2026-04-05
 
 ### Added
