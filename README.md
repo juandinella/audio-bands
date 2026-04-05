@@ -25,6 +25,8 @@ The intended center of the API is `snapshot()`: one call, one coherent analysis 
 npm install @juandinella/audio-bands
 ```
 
+For repository development, `npm test` covers the mocked unit suite and `npm run test:browser` runs a small browser smoke test against the built bundles.
+
 ### Entry points
 
 - `@juandinella/audio-bands`: main framework-agnostic export
