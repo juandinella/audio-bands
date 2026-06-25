@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.6.3 - 2026-06-25
+
+### Changed
+
+- Updated development tooling and example app dependencies to resolve npm audit advisories.
+- Aligned the example app with the current Vite and React tooling used by the repository.
+
+### Fixed
+
+- Ensured the example app resolves React from its own install when building the aliased local package source.
+
 ## 0.6.2 - 2026-04-05
 
 ### Fixed
