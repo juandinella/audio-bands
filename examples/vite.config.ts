@@ -7,6 +7,14 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: 'react',
+        replacement: resolve(__dirname, 'node_modules/react'),
+      },
+      {
+        find: 'react-dom',
+        replacement: resolve(__dirname, 'node_modules/react-dom'),
+      },
+      {
         find: '@juandinella/audio-bands/react',
         replacement: resolve(__dirname, '../src/react-entry.ts'),
       },
