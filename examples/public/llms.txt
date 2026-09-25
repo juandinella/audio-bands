@@ -108,3 +108,13 @@ Read `snapshot()` inside a `useEffect` animation loop and cancel the RAF in its 
 - npm: https://www.npmjs.com/package/@juandinella/audio-bands
 - GitHub: https://github.com/juandinella/audio-bands
 - Demo: https://audio-bands.juandinella.com
+- Documentation: https://audio-bands.juandinella.com/docs/
+- Markdown package reference: https://audio-bands.juandinella.com/docs.md
+- Progressive examples: https://audio-bands.juandinella.com/examples/
+- Beginner CSS pulse: https://audio-bands.juandinella.com/examples/pulse/
+- Band meters: https://audio-bands.juandinella.com/examples/bands/
+- Canvas FFT spectrum: https://audio-bands.juandinella.com/examples/spectrum/
+- Microphone waveform: https://audio-bands.juandinella.com/examples/microphone/
+- Advanced Three.js sculpture: https://audio-bands.juandinella.com/examples/three/
+
+Three.js belongs to the advanced website example, not the audio-bands package. It is loaded only on that example page. The package itself has no renderer.

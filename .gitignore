@@ -26,6 +26,9 @@ package-lock.json
 
 # examples build artifacts
 examples/dist
+examples/.ssr
+examples/test-results
+examples/playwright-report
 examples/node_modules
 
 # misc

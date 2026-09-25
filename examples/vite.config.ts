@@ -3,7 +3,33 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: 'site-dev-content',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const path = req.url?.split('?')[0];
+        const sources: Record<string, string> = {
+          '/docs.md': '../README.md',
+          '/source/Demo.tsx': 'src/Demo.tsx',
+          '/source/three-scene.ts': 'src/three-scene.ts',
+          '/source/content.ts': 'src/content.ts',
+        };
+        if (!path || !sources[path]) return next();
+        const { readFile } = await import('node:fs/promises');
+        try {
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(await readFile(resolve(__dirname, sources[path]), 'utf8'));
+        } catch (error) { next(error); }
+      });
+    },
+    async transformIndexHtml(html, context) {
+      if (!context.server) return html;
+      const { renderHead } = await context.server.ssrLoadModule('/src/metadata.ts');
+      const pathname = (context.originalUrl ?? context.path).split('?')[0];
+      const path = `${pathname.replace(/\/+$/, '')}/`;
+      return html.replace('<!--page-head-->', renderHead(path));
+    },
+  }],
   resolve: {
     alias: [
       {
