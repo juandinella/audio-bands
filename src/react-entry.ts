@@ -1,3 +1,5 @@
+'use client';
+
 export { useAudioBands } from './react';
 export { AudioBandsError } from './errors';
 export type { UseAudioBandsReturn } from './react';

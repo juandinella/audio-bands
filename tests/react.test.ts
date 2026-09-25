@@ -152,6 +152,25 @@ const MockAudioBands = AudioBands as unknown as {
 };
 
 describe('useAudioBands', () => {
+  it.each([false, true])('destroys every replacement instance on unmount (StrictMode: %s)', (strict) => {
+    MockAudioBands.instances.length = 0;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      strict ? createElement(StrictMode, null, children) : children
+    );
+    const { rerender, unmount } = renderHook(
+      ({ fftSize }) => useAudioBands({ music: { fftSize } }),
+      { initialProps: { fftSize: 256 }, wrapper },
+    );
+
+    rerender({ fftSize: 512 });
+    rerender({ fftSize: 1024 });
+    unmount();
+
+    for (const instance of MockAudioBands.instances) {
+      expect(instance.destroy).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it('recreates the instance when structural options change', () => {
     MockAudioBands.instances.length = 0;
     MockAudioBands.nextPlayError = null;

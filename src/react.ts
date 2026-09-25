@@ -136,9 +136,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   const getOrCreateInstance = (): AudioBands => {
     if (instance.current) return instance.current;
 
-    const next = createAudioBandsInstance(options, latestOptions, setState, instance);
+    const next = createAudioBandsInstance(latestOptions.current, latestOptions, setState, instance);
     instance.current = next;
-    structuralOptionsKeyRef.current = structuralOptionsKey;
+    structuralOptionsKeyRef.current = getStructuralOptionsKey(latestOptions.current);
     return next;
   };
 
@@ -149,9 +149,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     setState(current.getState());
 
     return () => {
-      if (instance.current !== current) return;
-      current.destroy();
+      const active = instance.current;
       instance.current = null;
+      active?.destroy();
     };
   }, []);
 

@@ -61,7 +61,7 @@ function normalizeAnalyserConfig(
   }
 
   if (
-    typeof smoothingTimeConstant !== 'number' ||
+    !Number.isFinite(smoothingTimeConstant) ||
     smoothingTimeConstant < 0 ||
     smoothingTimeConstant > 1
   ) {
@@ -81,6 +81,8 @@ function normalizeRange(name: string, range: BandRange | undefined): BandRange {
   if (
     typeof normalized?.from !== 'number' ||
     typeof normalized?.to !== 'number' ||
+    !Number.isFinite(normalized.from) ||
+    !Number.isFinite(normalized.to) ||
     normalized.from < 0 ||
     normalized.to > 1 ||
     normalized.from >= normalized.to
@@ -192,6 +194,8 @@ export class AudioBands {
   private musicSource: MediaElementAudioSourceNode | null = null;
   private micSource: MediaStreamAudioSourceNode | null = null;
   private micStream: MediaStream | null = null;
+  private pendingMic: Promise<void> | null = null;
+  private micRequestId = 0;
   private musicEventCleanup: (() => void) | null = null;
   private pendingLoadCleanup: (() => void) | null = null;
   private pendingLoadReject: ((error: AudioBandsError) => void) | null = null;
@@ -282,9 +286,20 @@ export class AudioBands {
     if (!audio) return;
 
     try {
-      await audio.play();
+      const ctx = this.ensureCtx();
+      await Promise.all([
+        audio.play(),
+        ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
+      ]);
+      if (this.audioEl !== audio) return;
       this.setState({ playbackError: null });
     } catch (error) {
+      if (this.audioEl !== audio) {
+        throw error instanceof AudioBandsError
+          ? error
+          : new AudioBandsError('playback', 'playback_error', 'Failed to play audio track', error);
+      }
+      audio.pause();
       throw this.handleError('playback', error, 'playback_error');
     }
   }
@@ -346,14 +361,35 @@ export class AudioBands {
       throw this.handleError('mic', error);
     }
 
+    if (this.pendingMic) return this.pendingMic;
     if (this.micStream) return;
 
+    const requestId = ++this.micRequestId;
+    const pending = this.startMic(ctx, requestId);
+    this.pendingMic = pending;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false,
-      });
-      this.micStream = stream;
+      await pending;
+    } finally {
+      if (this.pendingMic === pending) this.pendingMic = null;
+    }
+  }
+
+  private async startMic(ctx: AudioContext, requestId: number): Promise<void> {
+    try {
+      const [stream] = await Promise.all([
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
+          if (requestId !== this.micRequestId || this.destroyed) {
+            stream.getTracks().forEach((track) => track.stop());
+          } else {
+            this.micStream = stream;
+          }
+          return stream;
+        }),
+        ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
+      ]);
+
+      if (requestId !== this.micRequestId || this.destroyed) return;
 
       const analyser = this.createAnalyser(ctx, this.micConfig);
       this.micAnalyser = analyser;
@@ -365,23 +401,28 @@ export class AudioBands {
       ) as Uint8Array<ArrayBuffer>;
 
       const source = ctx.createMediaStreamSource(stream);
-      source.connect(analyser);
       this.micSource = source;
+      source.connect(analyser);
 
       this.setState({ micActive: true, micError: null });
       this.options.onMicStart?.();
     } catch (error) {
+      if (requestId !== this.micRequestId || this.destroyed) return;
+      this.disableMic();
       throw this.handleError('mic', error, 'mic_error');
     }
   }
 
   disableMic(): void {
-    const hadMic = Boolean(this.micStream || this.micSource || this.micAnalyser);
+    ++this.micRequestId;
+    this.pendingMic = null;
+    const hadMic = this.state.micActive;
     this.micStream?.getTracks().forEach((track) => track.stop());
     this.micStream = null;
 
     try {
       this.micSource?.disconnect();
+      this.micAnalyser?.disconnect();
     } catch {
       /* already disconnected */
     }
@@ -426,6 +467,7 @@ export class AudioBands {
   destroy(): void {
     if (this.destroyed) return;
 
+    this.destroyed = true;
     this.teardownMusic();
     this.disableMic();
     void this.ctx?.close();
@@ -435,7 +477,6 @@ export class AudioBands {
     this.musicWaveformData = null;
     this.setState({ isPlaying: false, micActive: false, hasTrack: false });
     this.options = {};
-    this.destroyed = true;
   }
 
   private readFrequencyData(source: AudioSource): Uint8Array<ArrayBuffer> | null {

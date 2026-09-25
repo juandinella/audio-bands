@@ -1,28 +1,45 @@
 import { AudioBands } from '@juandinella/audio-bands';
 
-const audio = new AudioBands({
-  customBands: {
-    presence: { from: 0.25, to: 0.5 },
-  },
-});
+export function mountAudioExample(playButton: HTMLButtonElement, output: HTMLElement) {
+  const audio = new AudioBands({
+    customBands: { presence: { from: 0.25, to: 0.5 } },
+  });
+  let raf = 0;
+  let disposed = false;
+  playButton.disabled = true;
 
-await audio.load('/audio/gymnopedie-1.ogg');
-await audio.play();
+  function frame() {
+    const snapshot = audio.snapshot();
+    output.textContent = JSON.stringify({
+      ...snapshot.bands,
+      ...snapshot.customBands,
+      fftBins: snapshot.fft?.length ?? 0,
+    });
+    raf = requestAnimationFrame(frame);
+  }
 
-function frame() {
-  const snapshot = audio.snapshot();
-  const { bass, mid, high, overall } = snapshot.bands;
+  async function play() {
+    try {
+      await audio.play();
+      if (disposed) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    } catch (error) {
+      if (!disposed) output.textContent = error instanceof Error ? error.message : String(error);
+    }
+  }
 
-  console.log({
-    bass,
-    mid,
-    high,
-    overall,
-    presence: snapshot.customBands.presence,
-    fftBins: snapshot.fft?.length ?? 0,
+  playButton.addEventListener('click', play);
+  void audio.load('/audio/gymnopedie-1.ogg').then(() => {
+    if (!disposed) playButton.disabled = false;
+  }).catch((error: Error) => {
+    if (!disposed) output.textContent = error.message;
   });
 
-  requestAnimationFrame(frame);
+  return () => {
+    disposed = true;
+    cancelAnimationFrame(raf);
+    playButton.removeEventListener('click', play);
+    audio.destroy();
+  };
 }
-
-requestAnimationFrame(frame);

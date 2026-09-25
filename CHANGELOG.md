@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## 0.6.4 - 2026-09-25
+
+### Fixed
+
+- Stop microphone streams received after `disableMic()` or `destroy()`, share concurrent activation requests, and clean up streams when audio setup fails.
+- Release the current React hook instance on unmount after structural options change, including Strict Mode cleanup cycles.
+- Resume suspended audio contexts during playback and microphone activation. Report resume failures through the existing error contract.
+- Reject non-finite analyser settings and band range endpoints.
+- Preserve the `use client` directive in the published React entrypoints.
+- Make the release checker handle npm 11 and npm 12 pack metadata without mixing build logs into JSON or leaving tarballs in the repository.
+
+### Changed
+
+- Add regression tests for microphone cancellation, concurrent activation, context resumption, and hook reconfiguration cleanup.
+- Exercise native Web Audio playback and microphone cleanup in Chromium using a generated WAV tone and a browser-provided test input device.
+- Run release checks on pull requests and pushes to `main`, and typecheck source before publishing.
+- Update development and demo dependencies to resolve reported npm audit vulnerabilities, including Vitest 4.1.11.
+- Document shared snapshot buffers, CORS, autoplay restrictions, and microphone permissions. Update reference examples with error handling and animation-loop cleanup.
+- Include the MIT license text in the repository and published package.
+
 ## 0.6.3 - 2026-06-25
 
 ### Changed

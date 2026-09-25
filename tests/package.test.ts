@@ -32,4 +32,14 @@ describe('package exports', () => {
     expect(coreBundle).not.toContain('"react"');
     expect(reactBundle).toContain('"react"');
   });
+
+  it('preserves the client boundary only on React entrypoints', () => {
+    for (const extension of ['js', 'cjs']) {
+      const reactBundle = readFileSync(resolve(process.cwd(), `dist/react-entry.${extension}`), 'utf8');
+      const rootBundle = readFileSync(resolve(process.cwd(), `dist/index.${extension}`), 'utf8');
+      const clientDirective = /^(?:["']use strict["'];\s*)?["']use client["'];/;
+      expect(reactBundle).toMatch(clientDirective);
+      expect(rootBundle).not.toMatch(clientDirective);
+    }
+  });
 });

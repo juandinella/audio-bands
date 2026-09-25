@@ -25,7 +25,7 @@ The intended center of the API is `snapshot()`: one call, one coherent analysis 
 npm install @juandinella/audio-bands
 ```
 
-For repository development, `npm test` covers the mocked unit suite and `npm run test:browser` runs a small browser smoke test against the built bundles.
+For repository development, `npm test` covers the unit suite. `npm run test:browser` checks the built bundles and exercises native Web Audio in Chromium, including playback and microphone cleanup with a browser-provided test device.
 
 ### Entry points
 
@@ -40,6 +40,10 @@ Minimal reference examples live in [`examples/README.md`](./examples/README.md).
 ## Usage
 
 ### Vanilla JS
+
+```html
+<button id="play" disabled>Play</button>
+```
 
 ```ts
 import { AudioBands } from '@juandinella/audio-bands';
@@ -57,8 +61,18 @@ const audio = new AudioBands({
   onMicError: (error) => console.error('mic error', error),
 });
 
-await audio.load('/track.mp3');
-await audio.play();
+const playButton = document.querySelector<HTMLButtonElement>('#play')!;
+let disposed = false;
+let raf = 0;
+
+function play() {
+  void audio.play().catch(console.error);
+}
+
+playButton.addEventListener('click', play);
+void audio.load('/track.mp3').then(() => {
+  if (!disposed) playButton.disabled = false;
+}).catch(console.error);
 
 function loop() {
   const frame = audio.snapshot();
@@ -67,79 +81,98 @@ function loop() {
   const fft = frame.fft;
   const waveform = frame.waveform;
 
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(loop);
+raf = requestAnimationFrame(loop);
+
+// Call when removing the visualizer.
+function cleanup() {
+  disposed = true;
+  cancelAnimationFrame(raf);
+  playButton.removeEventListener('click', play);
+  audio.destroy();
+}
 ```
 
 ### React hook
 
 ```tsx
+import { useEffect, useState } from 'react';
 import { useAudioBands } from '@juandinella/audio-bands/react';
 
 function Visualizer() {
-  const {
-    isPlaying,
-    hasTrack,
-    loadError,
-    playbackError,
-    micError,
-    loadTrack,
-    play,
-    pause,
-    setLoop,
-    seek,
-    getDuration,
-    getCurrentTime,
-    snapshot,
-    togglePlayPause,
-    toggleMic,
-    getBands,
-    getCustomBands,
-  } = useAudioBands({
-    customBands: {
-      presence: { from: 0.25, to: 0.5 },
-    },
-  });
+  const { loadTrack, togglePlayPause, snapshot, isPlaying, hasTrack } = useAudioBands();
+  const [frame, setFrame] = useState(() => snapshot());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const frame = snapshot();
+  useEffect(() => {
+    if (!isPlaying) return;
+    let raf = 0;
+    function loop() {
+      setFrame(snapshot());
+      raf = requestAnimationFrame(loop);
+    }
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying, snapshot]);
+
+  async function handleLoad() {
+    setIsLoading(true);
+    setError('');
+    try {
+      await loadTrack('/track.mp3');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handlePlay() {
+    setError('');
+    try {
+      await togglePlayPause();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   return (
     <>
-      <button onClick={() => loadTrack('/track.mp3')}>load</button>
-      <button onClick={play}>play</button>
-      <button onClick={pause}>pause</button>
-      <button onClick={() => setLoop(true)}>loop</button>
-      <button onClick={() => seek(30)}>seek 0:30</button>
-      <button onClick={togglePlayPause}>toggle</button>
-      <button onClick={toggleMic}>Toggle mic</button>
-      <pre>{JSON.stringify({
-        hasTrack,
-        loadError,
-        playbackError,
-        micError,
-        duration: getDuration(),
-        currentTime: getCurrentTime(),
-        ...frame.bands,
-        ...frame.customBands,
-      }, null, 2)}</pre>
+      <button onClick={handleLoad} disabled={isLoading}>
+        {isLoading ? 'Loading…' : 'Load track'}
+      </button>
+      <button onClick={handlePlay} disabled={isLoading || !hasTrack}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      {error && <p role="alert">{error}</p>}
+      <pre>{JSON.stringify(frame.bands, null, 2)}</pre>
     </>
   );
 }
 ```
 
+This example updates React state for a small text display. For canvas rendering, read `snapshot()` and draw inside the animation loop instead. The hook releases audio resources on unmount; the effect above cancels the loop.
+
 ### Mic input
 
 ```ts
-await audio.enableMic();
+// Call from a click or tap handler.
+async function startMic() {
+  try {
+    await audio.enableMic();
+  } catch (error) {
+    console.error(error);
+  }
+}
 
+// Read these inside your animation loop after enabling the mic.
 const micBands = audio.getBands('mic');
 const micCustomBands = audio.getCustomBands('mic');
 const waveform = audio.getWaveform('mic');
 ```
-
-## When To Use Bands Vs FFT
 
 ## What `bass`, `mid`, `high`, and `overall` Mean
 
@@ -206,7 +239,7 @@ new AudioBands(options?: AudioBandsOptions)
 | `togglePlayPause()`     | Toggle the current track. Returns a promise and propagates playback errors when toggling into play. |
 | `enableMic()`           | Request microphone access and start mic analysis. Rejects with `AudioBandsError` on failure. |
 | `disableMic()`          | Stop mic input and clean up the stream. |
-| `snapshot(source?)`     | Returns `{ bands, customBands, fft, waveform }` from a single analyser read. |
+| `snapshot(source?)`     | Returns `{ bands, customBands, fft, waveform }` using one frequency read and one time-domain read. The typed-array buffers are reused. |
 | `getBands(source?)`     | Returns normalized analyser-region energy `{ bass, mid, high, overall }`. |
 | `getCustomBands(source?)` | Returns normalized values for configured custom bands. |
 | `getFftData(source?)`   | Returns raw `Uint8Array` frequency bins. |
@@ -279,7 +312,7 @@ type AudioBandsOptions = {
 type AudioBandsState = {
   isPlaying: boolean;
   micActive: boolean;
-  hasTrack: boolean; // a track source is assigned, even if playback later fails
+  hasTrack: boolean; // loading finished, even if playback later fails
   loadError: AudioBandsError | null;
   playbackError: AudioBandsError | null;
   micError: AudioBandsError | null;
@@ -289,6 +322,9 @@ type AudioBandsState = {
 ## Notes
 
 - `AudioContext` is created lazily on the first call to `load()` or `enableMic()`.
+- Call `play()`, `togglePlayPause()`, and `enableMic()` from a click or tap handler. Playback and mic activation resume a suspended context, but cannot bypass the browser's autoplay policy. If loading across an `await` loses user activation, use separate load and play controls as in the React example.
+- Microphone access needs HTTPS or localhost and permission from the user. Concurrent `enableMic()` calls share a pending request. `disableMic()` and `destroy()` invalidate it and stop any stream received later. Late results cannot activate the mic or overwrite errors from a newer request. The library cannot dismiss the browser's permission dialog.
+- Cross-origin track URLs must allow CORS for your origin. The media element uses `crossOrigin = 'anonymous'`; a URL that plays outside Web Audio is not necessarily available for analysis.
 - `load()` prepares the current track but does not start playback. It resolves only after the media is ready enough for duration/seek reads to be meaningful, then you can call `play()` or `togglePlayPause()`.
 - `togglePlayPause()` follows the same playback error contract as `play()`: if toggling into play fails, the returned promise rejects.
 - `hasTrack` means the current track finished loading and is ready on the instance. It can still be `true` if `play()` fails later due to autoplay policy or another playback error.
@@ -299,7 +335,7 @@ type AudioBandsState = {
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `snapshot()` is the preferred way to read analysis inside `requestAnimationFrame`.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` are convenience reads when you only need one view of the current frame.
-- `getFftData()` returns the same underlying buffer on each call. Copy it if you need frame-to-frame comparisons.
+- `getFftData()`, `getWaveform()`, and the `fft` / `waveform` fields of `snapshot()` reuse their underlying buffers. Later reads overwrite earlier data. Use `frame.fft?.slice()` and `frame.waveform?.slice()` to retain a frame; treat the shared buffers as read-only. `bands` and `customBands` are new objects on each snapshot.
 - `fftSize` must be a power of two between `32` and `32768`.
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.
 - The default `bass` / `mid` / `high` labels are convenience names for analyser regions, not fixed Hz buckets.
@@ -307,10 +343,13 @@ type AudioBandsState = {
 
 ## Development
 
+- CI uses Node.js 22 and npm 11.5.1. The release checker also supports npm 12's pack metadata format.
 - `npm test` builds the package and runs the unit suite.
-- `npm run test:browser` runs the browser smoke suite against the built bundles.
+- `npx tsc --noEmit` checks the source types.
+- `npx playwright install chromium` installs the browser needed for local tests.
+- `npm run test:browser` checks the built bundles and native Web Audio playback/mic lifecycle in Chromium. Firefox and WebKit are not covered by this suite.
 - `npm run test:release` packs the library and verifies the published tarball shape from a temporary consumer app.
-- Push a `v*` tag to run the release-check workflow, then use the manual `Publish to npm` GitHub Actions workflow against that verified ref.
+- Pull requests, pushes to `main`, and `v*` tags run the release-check workflow. Use the manual `Publish to npm` GitHub Actions workflow against a verified release ref.
 
 ## License
 

@@ -1,6 +1,6 @@
 {
   "name": "@juandinella/audio-bands",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Headless browser audio analysis. Get bass/mid/high bands from music or mic, with an optional React hook.",
   "keywords": [
     "react",
@@ -79,6 +79,6 @@
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vite": "^7.3.6",
-    "vitest": "^3.2.6"
+    "vitest": "^4.1.11"
   }
 }

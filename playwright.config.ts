@@ -5,6 +5,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     headless: true,
+    permissions: ['microphone'],
+    launchOptions: {
+      args: ['--autoplay-policy=document-user-activation-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    },
   },
   webServer: {
     command: 'npm run test:browser:serve',

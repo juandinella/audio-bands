@@ -9,7 +9,6 @@ const sharedEnv = {
   ...process.env,
   npm_config_cache: join(tempRoot, '.npm-cache'),
 };
-let tarballPath = null;
 
 function run(command, args, cwd = repoRoot) {
   execFileSync(command, args, {
@@ -28,16 +27,16 @@ function runJson(command, args, cwd = repoRoot) {
   });
 }
 
-function parsePackOutput(output) {
-  const jsonStart = output.lastIndexOf('\n[');
-  const normalized = jsonStart >= 0 ? output.slice(jsonStart + 1) : output;
-  return JSON.parse(normalized);
-}
-
 try {
-  const packOutput = runJson('npm', ['pack', '--json']);
-  const [{ filename }] = parsePackOutput(packOutput);
-  tarballPath = resolve(repoRoot, filename);
+  run('npm', ['run', 'build']);
+  const packOutput = runJson('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tempRoot]);
+  const [{ filename, files }] = Object.values(JSON.parse(packOutput));
+  const tarballPath = join(tempRoot, filename);
+  for (const required of ['LICENSE', 'README.md', 'dist/index.js', 'dist/core-entry.js', 'dist/react-entry.js']) {
+    if (!files.some((file) => file.path === required)) {
+      throw new Error(`Missing published file: ${required}`);
+    }
+  }
 
   const extractDir = join(tempRoot, 'package');
   mkdirSync(extractDir, { recursive: true });
@@ -78,8 +77,5 @@ try {
   run('node', ['esm.mjs'], consumerDir);
   run('node', ['cjs.cjs'], consumerDir);
 } finally {
-  if (tarballPath) {
-    rmSync(tarballPath, { force: true });
-  }
   rmSync(tempRoot, { recursive: true, force: true });
 }

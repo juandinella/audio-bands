@@ -23,19 +23,26 @@ const audio = new AudioBands({
   },
   onLoadError: (error) => console.error(error),
 });
-await audio.load('/track.mp3');
-await audio.play();
+void audio.load('/track.mp3').catch(console.error);
+// Call from a play button once audio.getState().hasTrack is true.
+function play() {
+  void audio.play().catch(console.error);
+}
+let raf = 0;
 
 function loop() {
   const frame = audio.snapshot(); // preferred: one coherent analysis frame
   const { bass, mid, high, overall } = frame.bands;
   const custom = frame.customBands;
   const fft = frame.fft; // Uint8Array(128) — raw frequency bins
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+raf = requestAnimationFrame(loop);
 
-audio.destroy(); // clean up when done
+function cleanup() {
+  cancelAnimationFrame(raf);
+  audio.destroy();
+}
 ```
 
 ## React hook
@@ -66,13 +73,15 @@ const {
 // Call getBands / getCustomBands / getFftData / getWaveform inside requestAnimationFrame
 ```
 
+Read `snapshot()` inside a `useEffect` animation loop and cancel the RAF in its cleanup. Calling `snapshot()` during render does not subscribe to audio frames. Catch rejected promises from event handlers even when error callbacks are configured. See `examples/snippets/basic-react.tsx` for a complete integration.
+
 ## Key API
 
-- `snapshot(source?)` — preferred analysis read; returns `{ bands, customBands, fft, waveform }` from one analyser read
+- `snapshot(source?)` — preferred analysis read; returns `{ bands, customBands, fft, waveform }` using one frequency read and one time-domain read
 - `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
 - `bass` / `mid` / `high` are coarse analyser regions, not fixed Hz bands; `overall` is a simple UI-oriented weighted summary
 - `getCustomBands(source?)` — returns normalized values for configured custom bands
-- `getFftData(source?)` — returns raw `Uint8Array` of 128 frequency bins (0–255 each)
+- `getFftData(source?)` — returns raw `Uint8Array` with `fftSize / 2` frequency bins (128 by default, values 0–255)
 - `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
@@ -83,7 +92,11 @@ const {
 
 ## Notes
 
-- `AudioContext` is created lazily on first `load()` or `enableMic()` call — respects browser autoplay policy
+- `AudioContext` is created lazily on first `load()` or `enableMic()` call
+- Call playback and microphone activation from a user gesture. They resume suspended contexts but cannot bypass browser autoplay policy
+- Mic access requires HTTPS or localhost and user permission. Concurrent activations share a request; disabling or destroying stops late streams
+- Cross-origin tracks require CORS headers and are loaded anonymously
+- FFT and waveform arrays are reused, including those inside `snapshot()`. Copy with `.slice()` before retaining a frame
 - `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
 - `loadError` is for track loading failures; `playbackError` is for play rejections such as autoplay policy
 - In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance

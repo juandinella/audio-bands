@@ -12,6 +12,7 @@ class MockAnalyser {
   frequencyData = new Uint8Array(128) as Uint8Array<ArrayBuffer>;
   waveformData = new Uint8Array(256) as Uint8Array<ArrayBuffer>;
   connect = vi.fn();
+  disconnect = vi.fn();
 
   get fftSize(): number {
     return this._fftSize;
@@ -56,6 +57,8 @@ class MockAudioContext {
   destination = {};
   analysers: MockAnalyser[] = [];
   close = vi.fn(async () => undefined);
+  state: AudioContextState = 'running';
+  resume = vi.fn(async () => { this.state = 'running'; });
 
   constructor() {
     MockAudioContext.instances.push(this);
@@ -153,6 +156,16 @@ const mediaDevices = {
   getUserMedia: vi.fn(),
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 beforeEach(() => {
   MockAudioContext.instances = [];
   MockAudioElement.instances = [];
@@ -177,6 +190,194 @@ beforeEach(() => {
 });
 
 describe('AudioBands', () => {
+  it.each(['disableMic', 'destroy'] as const)('stops a late microphone stream after %s', async (cancel) => {
+    const permission = deferred<MockMediaStream>();
+    const stream = new MockMediaStream();
+    const onMicStart = vi.fn();
+    mediaDevices.getUserMedia.mockReturnValue(permission.promise);
+    const audio = new AudioBands({ onMicStart });
+
+    const enabling = audio.enableMic();
+    audio[cancel]();
+    permission.resolve(stream);
+    await enabling;
+
+    expect(stream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    expect(audio.getState().micActive).toBe(false);
+    expect(audio.getFftData('mic')).toBeNull();
+    expect(onMicStart).not.toHaveBeenCalled();
+    audio.destroy();
+  });
+
+  it('shares concurrent microphone requests and stops the resulting stream', async () => {
+    const permission = deferred<MockMediaStream>();
+    const stream = new MockMediaStream();
+    const onMicStart = vi.fn();
+    mediaDevices.getUserMedia.mockReturnValue(permission.promise);
+    const audio = new AudioBands({ onMicStart });
+
+    const first = audio.enableMic();
+    const second = audio.enableMic();
+    expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
+    permission.resolve(stream);
+    await Promise.all([first, second]);
+
+    expect(onMicStart).toHaveBeenCalledTimes(1);
+    expect(audio.getState().micActive).toBe(true);
+    audio.disableMic();
+    expect(stream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    audio.destroy();
+  });
+
+  it.each(['resolve', 'reject'] as const)('ignores a cancelled request that later %ss while a new mic is active', async (settle) => {
+    const oldPermission = deferred<MockMediaStream>();
+    const oldStream = new MockMediaStream();
+    const newStream = new MockMediaStream();
+    const onMicError = vi.fn();
+    mediaDevices.getUserMedia
+      .mockReturnValueOnce(oldPermission.promise)
+      .mockResolvedValueOnce(newStream);
+    const audio = new AudioBands({ onMicError });
+
+    const oldRequest = audio.enableMic();
+    audio.disableMic();
+    await audio.enableMic();
+    if (settle === 'resolve') oldPermission.resolve(oldStream);
+    else oldPermission.reject(new Error('old permission denied'));
+    await oldRequest;
+
+    expect(audio.getState().micActive).toBe(true);
+    expect(newStream.tracks[0].stop).not.toHaveBeenCalled();
+    expect(onMicError).not.toHaveBeenCalled();
+    if (settle === 'resolve') expect(oldStream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    audio.destroy();
+    expect(newStream.tracks[0].stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up an acquired stream when connecting the microphone fails and can retry', async () => {
+    const stream = new MockMediaStream();
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    const source = new MockSourceNode();
+    source.connect.mockImplementationOnce(() => { throw new Error('connect failed'); });
+    vi.spyOn(ctx, 'createMediaStreamSource').mockReturnValueOnce(source as unknown as MediaStreamAudioSourceNode);
+    mediaDevices.getUserMedia.mockResolvedValueOnce(stream);
+
+    await expect(audio.enableMic()).rejects.toMatchObject({ code: 'mic_error' });
+    expect(stream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    expect(source.disconnect).toHaveBeenCalledTimes(1);
+    expect(audio.getState().micActive).toBe(false);
+    expect(audio.getFftData('mic')).toBeNull();
+
+    mediaDevices.getUserMedia.mockResolvedValueOnce(new MockMediaStream());
+    await audio.enableMic();
+    expect(audio.getState().micActive).toBe(true);
+    expect(audio.getState().micError).toBeNull();
+    audio.destroy();
+  });
+
+  it('resumes a suspended context for playback', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    ctx.state = 'suspended';
+
+    await audio.play();
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    expect(audio.getState().isPlaying).toBe(true);
+    audio.destroy();
+  });
+
+  it('pauses playback and reports a failed context resume', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    ctx.state = 'suspended';
+    ctx.resume.mockRejectedValueOnce(new Error('resume blocked'));
+
+    await expect(audio.play()).rejects.toMatchObject({ code: 'playback_error' });
+    expect(MockAudioElement.instances[0].paused).toBe(true);
+    expect(audio.getState().isPlaying).toBe(false);
+    audio.destroy();
+  });
+
+  it('rejects interrupted playback without overwriting a replacement track state', async () => {
+    const audio = new AudioBands();
+    await audio.load('/first.mp3');
+    const playback = deferred<void>();
+    MockAudioElement.instances[0].play.mockReturnValueOnce(playback.promise);
+    const playing = audio.play();
+    const rejection = expect(playing).rejects.toMatchObject({ code: 'playback_error' });
+    await audio.load('/second.mp3');
+    await audio.play();
+    playback.reject(new Error('old playback interrupted'));
+    await rejection;
+
+    expect(audio.getState().playbackError).toBeNull();
+    expect(audio.getState().isPlaying).toBe(true);
+    audio.destroy();
+  });
+
+  it('resumes the context when enabling microphone analysis', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    ctx.state = 'suspended';
+    mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
+
+    await audio.enableMic();
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    expect(audio.getState().micActive).toBe(true);
+    audio.destroy();
+  });
+
+  it('stops a stream received after context resume has failed', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    ctx.state = 'suspended';
+    ctx.resume.mockRejectedValueOnce(new Error('resume failed'));
+    const permission = deferred<MockMediaStream>();
+    const stream = new MockMediaStream();
+    mediaDevices.getUserMedia.mockReturnValue(permission.promise);
+
+    await expect(audio.enableMic()).rejects.toMatchObject({ code: 'mic_error' });
+    permission.resolve(stream);
+    await permission.promise;
+    expect(stream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    expect(audio.getState().micActive).toBe(false);
+    audio.destroy();
+  });
+
+  it('stops an acquired stream while context resumption is still pending', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    const resumption = deferred<void>();
+    ctx.state = 'suspended';
+    ctx.resume.mockReturnValueOnce(resumption.promise);
+    const stream = new MockMediaStream();
+    mediaDevices.getUserMedia.mockResolvedValue(stream);
+
+    const enabling = audio.enableMic();
+    await Promise.resolve();
+    audio.disableMic();
+    expect(stream.tracks[0].stop).toHaveBeenCalledTimes(1);
+    resumption.resolve();
+    await enabling;
+    expect(audio.getState().micActive).toBe(false);
+    expect(audio.getFftData('mic')).toBeNull();
+    audio.destroy();
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects non-finite analyser settings and range endpoints: %s', (value) => {
+    expect(() => new AudioBands({ music: { smoothingTimeConstant: value } })).toThrow(AudioBandsError);
+    expect(() => new AudioBands({ mic: { smoothingTimeConstant: value } })).toThrow(AudioBandsError);
+    expect(() => new AudioBands({ bandRanges: { bass: { from: value, to: 1 } } })).toThrow(AudioBandsError);
+    expect(() => new AudioBands({ customBands: { test: { from: 0, to: value } } })).toThrow(AudioBandsError);
+  });
+
   it('supports configurable analysers and custom band ranges after load readiness', async () => {
     mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
 

@@ -10,7 +10,9 @@ export type Bands = {
 export type AudioBandsSnapshot = {
   bands: Bands;
   customBands: Record<string, number>;
+  /** Shared buffer overwritten by subsequent frequency reads. Copy with .slice() to retain it. */
   fft: Uint8Array<ArrayBuffer> | null;
+  /** Shared buffer overwritten by subsequent waveform reads. Copy with .slice() to retain it. */
   waveform: Uint8Array<ArrayBuffer> | null;
 };
 

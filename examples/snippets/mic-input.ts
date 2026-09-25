@@ -1,18 +1,38 @@
 import { AudioBands } from '@juandinella/audio-bands';
 
-const audio = new AudioBands();
+export function mountMicExample(startButton: HTMLButtonElement, output: HTMLElement) {
+  const audio = new AudioBands();
+  let raf = 0;
+  let disposed = false;
 
-await audio.enableMic();
+  function frame() {
+    const snapshot = audio.snapshot('mic');
+    output.textContent = JSON.stringify({
+      ...snapshot.bands,
+      waveformSize: snapshot.waveform?.length ?? 0,
+    });
+    raf = requestAnimationFrame(frame);
+  }
 
-function frame() {
-  const snapshot = audio.snapshot('mic');
+  async function start() {
+    startButton.disabled = true;
+    try {
+      await audio.enableMic();
+      if (disposed || !audio.getState().micActive) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    } catch (error) {
+      if (!disposed) output.textContent = error instanceof Error ? error.message : String(error);
+    } finally {
+      if (!disposed) startButton.disabled = false;
+    }
+  }
 
-  console.log({
-    ...snapshot.bands,
-    waveformSize: snapshot.waveform?.length ?? 0,
-  });
-
-  requestAnimationFrame(frame);
+  startButton.addEventListener('click', start);
+  return () => {
+    disposed = true;
+    cancelAnimationFrame(raf);
+    startButton.removeEventListener('click', start);
+    audio.destroy();
+  };
 }
-
-requestAnimationFrame(frame);
