@@ -349,7 +349,7 @@ type AudioBandsState = {
 - `npx playwright install chromium` installs the browser needed for local tests.
 - `npm run test:browser` checks the built bundles and native Web Audio playback/mic lifecycle in Chromium. Firefox and WebKit are not covered by this suite.
 - `npm run test:release` packs the library and verifies the published tarball shape from a temporary consumer app.
-- Pull requests, pushes to `main`, and `v*` tags run the release-check workflow. Use the manual `Publish to npm` GitHub Actions workflow against a verified release ref.
+- Pull requests, pushes to `main`, and `v*` tags run the release-check workflow. Use the manual `Publish to npm` GitHub Actions workflow with the release tag (`vX.Y.Z`). It refuses any other ref, a tag that does not match `package.json`, or a tag that is not on `main`, and it runs in the `npm-publish` environment.
 
 ## License
 

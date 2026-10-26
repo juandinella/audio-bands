@@ -171,6 +171,25 @@ describe('useAudioBands', () => {
     }
   });
 
+  it.each([false, true])('never creates an instance or opens the mic after unmount (StrictMode: %s)', async (strict) => {
+    MockAudioBands.instances.length = 0;
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      strict ? createElement(StrictMode, null, children) : children
+    );
+    const { result, unmount } = renderHook(() => useAudioBands(), { wrapper });
+    const created = MockAudioBands.instances.length;
+
+    unmount();
+
+    await expect(result.current.toggleMic()).rejects.toMatchObject({ code: 'destroyed' });
+    await expect(result.current.loadTrack('/audio.ogg')).rejects.toMatchObject({ code: 'destroyed' });
+    expect(MockAudioBands.instances).toHaveLength(created);
+    for (const instance of MockAudioBands.instances) {
+      expect(instance.enableMic).not.toHaveBeenCalled();
+      expect(instance.destroy).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it('recreates the instance when structural options change', () => {
     MockAudioBands.instances.length = 0;
     MockAudioBands.nextPlayError = null;
