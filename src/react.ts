@@ -128,6 +128,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   const [state, setState] = useState<AudioBandsState>(INITIAL_STATE);
   const latestOptions = useRef(options);
   const instance = useRef<AudioBands | null>(null);
+  // Set on unmount. Calls that arrive later go to this destroyed instance and fail,
+  // instead of creating a new one that could open the mic and never be cleaned up.
+  const unmountedInstance = useRef<AudioBands | null>(null);
   const structuralOptionsKey = getStructuralOptionsKey(options);
   const structuralOptionsKeyRef = useRef(structuralOptionsKey);
 
@@ -135,6 +138,7 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
 
   const getOrCreateInstance = (): AudioBands => {
     if (instance.current) return instance.current;
+    if (unmountedInstance.current) return unmountedInstance.current;
 
     const next = createAudioBandsInstance(latestOptions.current, latestOptions, setState, instance);
     instance.current = next;
@@ -145,12 +149,15 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   getOrCreateInstance();
 
   useEffect(() => {
+    // StrictMode runs this effect again after a simulated unmount; start fresh.
+    unmountedInstance.current = null;
     const current = getOrCreateInstance();
     setState(current.getState());
 
     return () => {
       const active = instance.current;
       instance.current = null;
+      unmountedInstance.current = active;
       active?.destroy();
     };
   }, []);

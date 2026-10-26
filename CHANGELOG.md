@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## Unreleased
+
+### Fixed
+
+- `useAudioBands` no longer creates a new instance when its functions are called after the component unmounts. Those calls now fail with the `lifecycle`/`destroyed` error, so a late `toggleMic()` can no longer open the microphone with nothing left to close it.
+
+### Changed
+
+- The publish workflow only publishes a `vX.Y.Z` tag that matches `package.json` and is on `main`, and runs in the `npm-publish` environment.
+
 ## 0.6.4 - 2026-09-25
 
 ### Fixed
