@@ -216,23 +216,6 @@
 }
 
 /* The catalog's three directions, side by side. */
-[data-skin="hardware"] [data-switch-demo] {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-around;
-  align-items: center;
-  gap: 24px;
-  width: 100%;
-
-  & > [data-kit="field"] {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-
-  & [data-kit="slide-switch"][data-orientation="horizontal"] {
-    width: calc(var(--n) * var(--col));
-  }
-}
 
 /* The ticks sit just clear of the lever, so the chosen one shows too. */
 [data-skin="hardware"] [data-kit="slide-switch"] {

@@ -30,15 +30,12 @@
    the WCAG 2 formula, which puts black legends on the orange-red keys. */
 [data-skin] {
   --theme: oklch(var(--theme-l, 0.24) var(--theme-c, 0) var(--theme-h, 0));
-  --key-tone: clamp(0, (var(--theme-l, 0.24) - 0.68) * 1000, 1);
   --key-ink: oklch(
     from var(--theme)
       calc(min(l, 0.62) * (1 - clamp(0, (l - 0.68) * 1000, 1)) + 0.22 * clamp(0, (l - 0.68) * 1000, 1))
       calc(c * (1 - clamp(0, (l - 0.68) * 1000, 1)) + 0.01 * clamp(0, (l - 0.68) * 1000, 1))
       h
   );
-  --key-highlight: color-mix(in oklab, var(--theme) calc(var(--key-tone) * 100%), transparent);
-  --key-cap: oklch(from var(--theme) calc(l - max(0, l - 0.55) * (1 - clamp(0, (l - 0.8) * 1000, 1))) c h);
   --key-lamp: oklch(from var(--theme) min(l, 0.86) c h);
   --key-glow: oklch(from var(--theme) max(l, calc(0.95 - 0.23 * clamp(0, c * 20, 1))) c h);
   --on-accent: oklch(clamp(0.18, (0.8 - var(--theme-l, 0.24)) * 1000, 1) 0 0);

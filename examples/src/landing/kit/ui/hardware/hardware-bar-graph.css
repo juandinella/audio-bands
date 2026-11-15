@@ -35,12 +35,3 @@
 }
 
 /* The catalog's example: the graph on a small screen, its levels moving. */
-[data-skin="hardware"] [data-bar-graph-demo] {
-  width: 100%;
-  padding: 14px 14px 12px;
-  border-radius: calc(8px * var(--corner-scale));
-  background: var(--screen-glass);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.04),
-    0 1px 0 #fff;
-}

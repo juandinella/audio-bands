@@ -5,6 +5,8 @@ import { render, pages } from '../.ssr/entry-server.js';
 
 const dist = resolve('dist');
 await sharp(resolve('public/social.svg')).png().toFile(resolve(dist, 'social.png'));
+// iOS ignores SVG icons and rounds the corners itself: a full-bleed square.
+await sharp(resolve('public/favicon.svg'), { density: 360 }).resize(180, 180).flatten({ background: '#0d0f12' }).png().toFile(resolve(dist, 'apple-touch-icon.png'));
 const template = await readFile(resolve(dist, 'index.html'), 'utf8');
 for (const { path } of [...pages, { path: '/404/' }]) {
   const { html, head } = render(path);
