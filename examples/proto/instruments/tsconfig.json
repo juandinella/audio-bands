@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["vite/client"],
+    "paths": {
+      "@juandinella/audio-bands": ["../../../src/index.ts"],
+      "@juandinella/audio-bands/react": ["../../../src/react-entry.ts"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.js"]
+}

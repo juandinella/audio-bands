@@ -1,0 +1,248 @@
+/* Docs: the site's type and colour, set for reading. No device parts. */
+:root {
+  /* Same materials as the AB-1 landing. */
+  --paper: oklch(0.94 0.002 250);
+  --sheet: oklch(0.975 0.002 250);
+  --ink: oklch(0.22 0.006 250);
+  --print: oklch(0.42 0.006 250);   /* secondary text, 6.8:1 on paper */
+  --dim: oklch(0.48 0.006 250);     /* labels and numbers, 5.5:1 */
+  --hair: oklch(0.3 0.006 250 / 0.16);
+  --brand: oklch(0.68 0.21 40);     /* the key orange: marks, never text */
+  --brand-ink: oklch(0.5 0.17 40);  /* orange for text and links, ≥ 5:1 on paper */
+
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  /* Scale: meta 13 · code 14 · body 16 · lede 18 · h2 22 · h1 fluid */
+
+  color-scheme: light;
+  background: var(--paper);
+}
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.6 var(--sans);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection { background: color-mix(in oklab, var(--brand) 28%, transparent); }
+/* Reading pages only: the landing's kit draws its own focus rings and links. */
+.d-page :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 3px; }
+
+.d-page a { color: var(--brand-ink); text-decoration-thickness: from-font; text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .d-page a:hover { color: var(--ink); }
+}
+
+/* Skip link: hidden until focused, on every page. */
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 500 14px/1 var(--sans);
+  text-decoration: none;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+.skip-link:focus { clip-path: none; pointer-events: auto; }
+
+/* Site navigation on reading pages. */
+.d-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; margin-bottom: 8px; }
+.d-page .d-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--print);
+}
+.d-page .d-nav .d-brand { margin-inline-end: auto; color: var(--ink); }
+.d-page .d-nav a[aria-current] { color: var(--ink); text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 6px; }
+
+.d-page { max-width: 1120px; margin-inline: auto; padding: clamp(40px, 7vh, 72px) clamp(16px, 4vw, 40px) 160px; }
+
+/* Head */
+.d-head { display: grid; gap: 14px; margin-bottom: 56px; }
+.d-home {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font: 500 11px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--dim);
+}
+.d-head h1 {
+  margin: 0;
+  font: 200 clamp(36px, 5vw, 56px) / 1.05 var(--mono);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.d-lede { margin: 0; max-width: 60ch; font-size: 18px; line-height: 1.55; color: var(--print); text-wrap: pretty; }
+
+/* Layout */
+.d-body { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 64px; }
+.d-index { position: sticky; top: 24px; align-self: start; display: grid; }
+.d-index a { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; text-decoration: none; color: var(--print); }
+@media (hover: hover) and (pointer: fine) {
+  .d-index a:hover { color: var(--ink); }
+}
+/* The section being read: ink instead of grey, and an orange mark in the
+   gutter. Weight stays the same so nothing reflows. */
+.d-index a { position: relative; transition: color 150ms ease; }
+.d-index a::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 1px;
+  background: var(--brand);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.d-index a[aria-current] { color: var(--ink); }
+.d-index a[aria-current] .d-num { color: var(--brand-ink); }
+.d-index a[aria-current]::before { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .d-index a, .d-index a::before { transition: none; }
+}
+.d-index .d-md { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hair); color: var(--brand-ink); }
+.d-num { display: inline-block; min-width: 22px; font: 500 13px/1 var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* Reading text */
+.d-article { min-width: 0; }
+.d-article section { margin-bottom: 72px; scroll-margin-top: 24px; }
+.d-article section > p { max-width: 65ch; margin: 0 0 16px; text-wrap: pretty; }
+.d-article h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 20px;
+  font: 400 22px/1.2 var(--mono);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.d-article :not(pre) > code {
+  font: 0.875em/1 var(--mono);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1px var(--hair);
+  overflow-wrap: anywhere;
+}
+.d-article :is(th, td) > code { padding: 0; background: none; box-shadow: none; }
+.d-since {
+  display: inline-block;
+  margin-inline-end: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font: 500 11px/1.5 var(--mono);
+  color: var(--brand-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 60%, transparent);
+  vertical-align: 0.1em;
+}
+th .d-since { margin: 0 0 0 8px; }
+
+/* Code */
+.d-code { margin: 24px 0; border-radius: 10px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--hair); overflow: hidden; }
+.d-code figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-inline: 16px 4px;
+  border-bottom: 1px solid var(--hair);
+  font: 500 11px/1.4 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.d-copy {
+  min-width: 72px;
+  min-height: 44px;
+  padding-inline: 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--print);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .d-copy:hover { color: var(--ink); }
+}
+.d-code pre { margin: 0; padding: 18px 20px 20px; overflow-x: auto; font: 13.5px/1.7 var(--mono); tab-size: 2; color: var(--ink); }
+/* Syntax: one restrained palette from the site. Contrast on the sheet:
+   comments 5.9:1, strings 5.6:1, numbers 5.4:1. */
+.d-code .t-k { font-weight: 500; }
+.d-code .t-s { color: var(--brand-ink); }
+.d-code .t-n { color: oklch(0.5 0.14 252); }
+.d-code .t-c { color: var(--dim); }
+.d-code .t-p { color: var(--print); }
+
+/* Example tabs: plain text buttons, the chosen one underlined in brand orange. */
+.d-tabs { display: flex; gap: 4px; margin: 8px 0 -12px; }
+.d-tabs button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: 500 13px/1 var(--mono);
+  color: var(--print);
+  cursor: pointer;
+}
+.d-tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--brand); }
+
+/* Tables */
+.d-table { overflow-x: auto; margin: 24px 0; border-radius: 10px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--hair); }
+.d-table table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.5; }
+.d-table :is(th, td) { padding: 12px 16px; text-align: start; vertical-align: top; border-bottom: 1px solid var(--hair); }
+.d-table tr:last-child :is(th, td) { border-bottom: 0; }
+.d-table thead th, .d-table .d-group th { font: 500 11px/1.4 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.d-table .d-group th { padding-top: 22px; }
+.d-table tbody th { font: 400 14px/1.5 var(--mono); white-space: nowrap; }
+.d-table td code { font-size: 13px; overflow-wrap: normal; }
+.d-tnum { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Questions */
+.d-article details { max-width: 72ch; border-bottom: 1px solid var(--hair); }
+.d-article summary { display: flex; align-items: center; min-height: 52px; cursor: pointer; font-weight: 500; }
+.d-article details p { margin: 0 0 18px; max-width: 65ch; color: var(--print); }
+
+@media (max-width: 960px) {
+  .d-body { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .d-index { position: static; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .d-index a::before { display: none; }
+}
+
+/* Phones: each table row becomes a short stacked entry, so types never break
+   letter by letter. Column headings go; each cell is a line of its own. */
+@media (max-width: 640px) {
+  .d-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .d-table :is(table, tbody, tr, th, td) { display: block; }
+  .d-table tr { padding: 12px 16px; border-bottom: 1px solid var(--hair); }
+  .d-table tr:last-child { border-bottom: 0; }
+  .d-table :is(th, td) { padding: 0; border: 0; }
+  .d-table tbody th { white-space: normal; }
+  .d-table td { margin-top: 4px; }
+  /* Without column headings, the type reads as secondary to the name. */
+  .d-table tbody td:nth-of-type(1) { color: var(--print); }
+  .d-table .d-group { padding-bottom: 0; border-bottom: 0; }
+  .d-table .d-group th { padding-top: 10px; }
+}

@@ -1,0 +1,148 @@
+/* Examples: the docs' page, plus a dark stage for each renderer. */
+:root {
+  /* Bands as lit on the dark stage, and as ink on the page. */
+  --stage: oklch(0.17 0.006 250);
+  --glow-bass: oklch(0.7 0.15 252);
+  --glow-mid: oklch(0.95 0 0);
+  --glow-high: oklch(0.74 0.17 50);
+  --ink-bass: oklch(0.5 0.15 255);
+  --ink-high: var(--brand-ink);
+}
+.x-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Index */
+.x-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hair); }
+.x-list a {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 8px 24px;
+  align-items: baseline;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink);
+  text-decoration: none;
+}
+.x-list-main { display: grid; gap: 6px; }
+.x-list-title { font: 400 22px/1.25 var(--mono); letter-spacing: -0.01em; text-wrap: balance; }
+.x-list-desc { max-width: 60ch; color: var(--print); text-wrap: pretty; }
+.x-list-meta { font: 500 12px/1.4 var(--mono); color: var(--dim); white-space: nowrap; }
+@media (hover: hover) and (pointer: fine) {
+  .x-list a:hover .x-list-title { color: var(--brand-ink); }
+}
+.x-foot { margin: 32px 0 0; color: var(--print); }
+
+/* Detail head */
+.x-head { gap: 10px; margin-bottom: 36px; }
+.x-kicker { margin: 4px 0 0; font: 500 12px/1.4 var(--mono); color: var(--dim); }
+.x-title { font-size: clamp(32px, 4.4vw, 48px) !important; text-transform: none !important; }
+
+/* Stage */
+.x-demo {
+  --c-bass: var(--glow-bass);
+  --c-mid: var(--glow-mid);
+  --c-high: var(--glow-high);
+  --c-trace: var(--glow-mid);
+  display: grid;
+  gap: 16px;
+}
+.x-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(260px, 40vh, 380px);
+  border-radius: 14px;
+  background: var(--stage);
+  box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06);
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Canvases fill the stage exactly; flat drawings keep a 24px margin. */
+.x-stage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.x-mode-spectrum .x-stage canvas, .x-mode-microphone .x-stage canvas { inset: 24px; width: calc(100% - 48px); height: calc(100% - 48px); }
+
+.x-pulse {
+  width: 112px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--brand);
+  box-shadow: 0 0 40px color-mix(in oklab, var(--brand) 45%, transparent);
+  transform: scale(0.6);
+  will-change: transform;
+}
+
+.x-meters { display: grid; grid-template-columns: repeat(3, 72px); gap: 40px; height: calc(100% - 64px); }
+.x-meter { position: relative; border-radius: 4px; background: oklch(1 0 0 / 0.06); overflow: hidden; }
+.x-meter span {
+  position: absolute;
+  inset: 0;
+  transform: scaleY(var(--v, 0));
+  transform-origin: bottom;
+  background: var(--c-bass);
+  will-change: transform;
+}
+.x-meter[data-band="mid"] span { background: var(--c-mid); }
+.x-meter[data-band="high"] span { background: var(--c-high); }
+
+/* Values and controls */
+.x-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.x-values div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--hair); }
+.x-values dt { font: 500 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.x-values dd { margin: 0; font: 400 22px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.x-values [data-band="bass"] dd { color: var(--ink-bass); }
+.x-values [data-band="high"] dd { color: var(--ink-high); }
+
+.x-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.x-play {
+  min-height: 44px;
+  min-width: 112px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--ink);
+  font: 500 15px/1 var(--sans);
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .x-play:not(:disabled):hover { background: color-mix(in oklab, var(--brand) 88%, white); }
+}
+.x-play:active:not(:disabled) { transform: scale(0.97); }
+.x-play:disabled { background: oklch(0.86 0.004 250); color: var(--print); cursor: progress; }
+.x-track select {
+  min-height: 44px;
+  padding: 0 36px 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sheet) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%235f6266' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 14px center;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  font: 400 16px/1 var(--sans);
+  color: var(--ink);
+  appearance: none;
+  cursor: pointer;
+}
+.x-note { margin: 0; font-size: 14px; color: var(--print); }
+.x-error { margin: 0; color: var(--brand-ink); font-weight: 500; }
+@media (prefers-reduced-motion: reduce) {
+  .x-play { transition: none; }
+}
+
+/* Explanation */
+.x-explain { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 56px; align-items: start; padding-top: 64px; }
+.x-explain h2 { margin: 0 0 16px; font: 400 22px/1.2 var(--mono); }
+.x-explain p { max-width: 60ch; margin: 0 0 16px; }
+.x-explain .d-code { margin-top: 0; }
+.x-explain :not(pre) > code { font: 0.875em/1 var(--mono); padding: 0.15em 0.35em; border-radius: 4px; background: var(--sheet); box-shadow: inset 0 0 0 1px var(--hair); }
+
+.x-pager { display: flex; justify-content: space-between; gap: 24px; margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.x-pager a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.x-credits { margin: 96px 0 0; padding-top: 24px; border-top: 1px solid var(--hair); font-size: 13px; color: var(--dim); text-wrap: balance; }
+
+@media (max-width: 760px) {
+  .x-list a { grid-template-columns: 36px minmax(0, 1fr); }
+  .x-list-meta { grid-column: 2; }
+  .x-explain { grid-template-columns: minmax(0, 1fr); gap: 24px; padding-top: 40px; }
+  .x-meters { grid-template-columns: repeat(3, 56px); gap: 24px; }
+  .x-values dd { font-size: 18px; }
+}
