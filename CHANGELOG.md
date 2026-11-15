@@ -6,6 +6,12 @@ This changelog was reconstructed from release commits and tags for the early ver
 
 ## Unreleased
 
+### Added
+
+- `setBandRanges()` and `setAnalyserConfig()` change band ranges, `fftSize` and `smoothingTimeConstant` on a running instance, without recreating it or interrupting playback. Invalid input throws `invalid_config` and keeps the previous settings.
+- `getBandRanges()`, `getAnalyserConfig()` and `getSampleRate()` read the current settings, so a UI can show ranges in Hz.
+- The React hook exposes all five methods.
+
 ### Fixed
 
 - `useAudioBands` no longer creates a new instance when its functions are called after the component unmounts. Those calls now fail with the `lifecycle`/`destroyed` error, so a late `toggleMic()` can no longer open the microphone with nothing left to close it.

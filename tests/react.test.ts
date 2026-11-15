@@ -126,6 +126,24 @@ vi.mock('../src/core', () => {
       this.ensureNotDestroyed();
       return null;
     });
+    setBandRanges = vi.fn(() => {
+      this.ensureNotDestroyed();
+    });
+    getBandRanges = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return { bass: { from: 0, to: 0.1 }, mid: { from: 0.1, to: 0.4 }, high: { from: 0.4, to: 1 } };
+    });
+    setAnalyserConfig = vi.fn(() => {
+      this.ensureNotDestroyed();
+    });
+    getAnalyserConfig = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return { fftSize: 1024, smoothingTimeConstant: 0.5 };
+    });
+    getSampleRate = vi.fn(() => {
+      this.ensureNotDestroyed();
+      return 48000;
+    });
     destroy = vi.fn(() => {
       this.destroyed = true;
     });
@@ -148,6 +166,11 @@ const MockAudioBands = AudioBands as unknown as {
     seek: ReturnType<typeof vi.fn>;
     getDuration: ReturnType<typeof vi.fn>;
     getCurrentTime: ReturnType<typeof vi.fn>;
+    setBandRanges: ReturnType<typeof vi.fn>;
+    getBandRanges: ReturnType<typeof vi.fn>;
+    setAnalyserConfig: ReturnType<typeof vi.fn>;
+    getAnalyserConfig: ReturnType<typeof vi.fn>;
+    getSampleRate: ReturnType<typeof vi.fn>;
   }>;
 };
 
@@ -253,6 +276,26 @@ describe('useAudioBands', () => {
     unmount();
 
     expect(instance.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards live analysis settings to the current instance without recreating it', () => {
+    MockAudioBands.instances.length = 0;
+    MockAudioBands.nextPlayError = null;
+
+    const { result, rerender } = renderHook(() => useAudioBands());
+    const instance = MockAudioBands.instances[0];
+
+    result.current.setBandRanges({ bass: { from: 0, to: 0.1 } });
+    result.current.setAnalyserConfig('mic', { smoothingTimeConstant: 0.5 });
+    expect(result.current.getBandRanges().bass).toEqual({ from: 0, to: 0.1 });
+    expect(result.current.getAnalyserConfig('mic')).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.5 });
+    expect(result.current.getSampleRate()).toBe(48000);
+    rerender();
+
+    expect(instance.setBandRanges).toHaveBeenCalledWith({ bass: { from: 0, to: 0.1 } });
+    expect(instance.setAnalyserConfig).toHaveBeenCalledWith('mic', { smoothingTimeConstant: 0.5 });
+    expect(instance.getAnalyserConfig).toHaveBeenCalledWith('mic');
+    expect(MockAudioBands.instances).toHaveLength(1);
   });
 
   it('keeps hook state synchronized with play lifecycle', async () => {

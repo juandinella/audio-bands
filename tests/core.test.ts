@@ -55,6 +55,7 @@ class MockAudioContext {
   static instances: MockAudioContext[] = [];
 
   destination = {};
+  sampleRate = 48000;
   analysers: MockAnalyser[] = [];
   close = vi.fn(async () => undefined);
   state: AudioContextState = 'running';
@@ -376,6 +377,82 @@ describe('AudioBands', () => {
     expect(() => new AudioBands({ mic: { smoothingTimeConstant: value } })).toThrow(AudioBandsError);
     expect(() => new AudioBands({ bandRanges: { bass: { from: value, to: 1 } } })).toThrow(AudioBandsError);
     expect(() => new AudioBands({ customBands: { test: { from: 0, to: value } } })).toThrow(AudioBandsError);
+  });
+
+  it('changes band ranges live, keeping omitted bands and rejecting invalid input whole', async () => {
+    const audio = new AudioBands();
+    await audio.load('/track.mp3');
+    const analyser = MockAudioContext.instances[0].analysers[0];
+    const data = new Uint8Array(128);
+    data.fill(255, 0, 32);
+    analyser.frequencyData = data as Uint8Array<ArrayBuffer>;
+
+    expect(audio.getBands().mid).toBeCloseTo((255 * 22) / 41 / 255, 4);
+
+    audio.setBandRanges({ bass: { from: 0, to: 0.25 }, mid: { from: 0.25, to: 0.5 } });
+    expect(audio.getBandRanges()).toEqual({
+      bass: { from: 0, to: 0.25 },
+      mid: { from: 0.25, to: 0.5 },
+      high: { from: 0.4, to: 1 },
+    });
+    expect(audio.getBands().bass).toBeCloseTo(1, 4);
+    expect(audio.getBands().mid).toBeCloseTo(0, 4);
+    expect(audio.snapshot().bands.bass).toBeCloseTo(1, 4);
+
+    expect(() =>
+      audio.setBandRanges({ bass: { from: 0, to: 0.1 }, high: { from: 0.9, to: 0.5 } }),
+    ).toThrow(AudioBandsError);
+    expect(audio.getBandRanges().bass).toEqual({ from: 0, to: 0.25 });
+
+    const copy = audio.getBandRanges();
+    copy.bass!.to = 0.9;
+    expect(audio.getBandRanges().bass).toEqual({ from: 0, to: 0.25 });
+    audio.destroy();
+  });
+
+  it('changes analyser settings live and replaces buffers when fftSize changes', async () => {
+    mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
+    const audio = new AudioBands();
+    expect(audio.getSampleRate()).toBeNull();
+
+    audio.setAnalyserConfig('music', { smoothingTimeConstant: 0.2 });
+    await audio.load('/track.mp3');
+    expect(audio.getSampleRate()).toBe(48000);
+
+    const ctx = MockAudioContext.instances[0];
+    const music = ctx.analysers[0];
+    expect(music.smoothingTimeConstant).toBe(0.2);
+    expect(music.fftSize).toBe(256);
+
+    const before = audio.snapshot().fft;
+    expect(before).toHaveLength(128);
+
+    audio.setAnalyserConfig('music', { fftSize: 1024 });
+    expect(music.fftSize).toBe(1024);
+    expect(music.smoothingTimeConstant).toBe(0.2);
+    expect(audio.getAnalyserConfig()).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.2 });
+    const after = audio.snapshot();
+    expect(after.fft).toHaveLength(512);
+    expect(after.waveform).toHaveLength(1024);
+    expect(after.fft).not.toBe(before);
+
+    expect(() => audio.setAnalyserConfig('music', { fftSize: 1000, smoothingTimeConstant: 0.5 })).toThrow(
+      AudioBandsError,
+    );
+    expect(audio.getAnalyserConfig('music')).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.2 });
+    expect(music.smoothingTimeConstant).toBe(0.2);
+
+    audio.setAnalyserConfig('mic', { fftSize: 64, smoothingTimeConstant: 0.1 });
+    await audio.enableMic();
+    const mic = ctx.analysers[1];
+    expect(mic.fftSize).toBe(64);
+    expect(mic.smoothingTimeConstant).toBe(0.1);
+    expect(audio.getFftData('mic')).toHaveLength(32);
+
+    audio.setAnalyserConfig('mic', { smoothingTimeConstant: 0.9 });
+    expect(mic.smoothingTimeConstant).toBe(0.9);
+    expect(music.smoothingTimeConstant).toBe(0.2);
+    audio.destroy();
   });
 
   it('supports configurable analysers and custom band ranges after load readiness', async () => {
