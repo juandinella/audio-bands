@@ -46,3 +46,39 @@ test('releases real microphone tracks and contexts after hook reconfiguration an
   await expect.poll(() => page.evaluate(() => window.audioTest.contexts.slice(1).every((ctx) => ctx.state === 'closed'))).toBe(true);
   expect(await page.evaluate(() => window.audioTest.streams.every((stream) => stream.getTracks().every((track) => track.readyState === 'ended')))).toBe(true);
 });
+
+test('changes a real analyser live without interrupting playback', async ({ page }) => {
+  await page.goto('/real.html');
+  await expect.poll(() => page.evaluate(() => window.audioTest.loaded)).toBe(true);
+  await page.getByRole('button', { name: 'Play track', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.audioTest.core.getState().isPlaying)).toBe(true);
+
+  const result = await page.evaluate(async () => {
+    const { core } = window.audioTest;
+    const sampleRate = core.getSampleRate();
+    core.setAnalyserConfig('music', { fftSize: 2048, smoothingTimeConstant: 0.3 });
+    core.setBandRanges({ bass: { from: 0, to: 0.02 }, mid: { from: 0.02, to: 0.2 } });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const frame = core.snapshot();
+    return {
+      sampleRate,
+      playing: core.getState().isPlaying,
+      fft: frame.fft?.length,
+      waveform: frame.waveform?.length,
+      heard: frame.fft?.some((value) => value > 0),
+      config: core.getAnalyserConfig('music'),
+      bass: core.getBandRanges().bass,
+    };
+  });
+
+  expect(result.sampleRate).toBeGreaterThan(0);
+  expect(result).toMatchObject({
+    playing: true,
+    fft: 1024,
+    waveform: 2048,
+    heard: true,
+    config: { fftSize: 2048, smoothingTimeConstant: 0.3 },
+    bass: { from: 0, to: 0.02 },
+  });
+  await page.getByRole('button', { name: 'Destroy core' }).click();
+});
