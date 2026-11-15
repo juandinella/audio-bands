@@ -10,7 +10,8 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "paths": {
-      "@juandinella/audio-bands/react": ["../src/react-entry.ts"]
+      "@juandinella/audio-bands/react": ["../src/react-entry.ts"],
+      "@juandinella/audio-bands": ["../src/index.ts"]
     }
   },
   "include": ["src"]

@@ -17,7 +17,7 @@ test('every route has crawlable HTML and unique metadata before JavaScript', asy
     titles.add(await page.title());
   }
   expect(titles.size).toBe(pages.length);
-  for (const asset of ['/robots.txt', '/sitemap.xml', '/llms.txt', '/docs.md', '/social.png', '/source/Demo.tsx', '/source/three-scene.ts']) {
+  for (const asset of ['/robots.txt', '/sitemap.xml', '/llms.txt', '/docs.md', '/social.png', '/source/Stage.tsx', '/source/sculpture.ts']) {
     const response = await request.get(asset);
     expect(response.ok(), asset).toBeTruthy();
     expect((await response.body()).length).toBeGreaterThan(30);
@@ -38,7 +38,7 @@ test('all examples render on mobile without overflow or hydration errors', async
   expect(errors).toEqual([]);
 });
 
-test('playback produces data, pauses and resumes without reloading', async ({ page }) => {
+test('the AB-1 plays, pauses, resumes and keeps playing across tracks', async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
@@ -47,20 +47,21 @@ test('playback produces data, pauses and resumes without reloading', async ({ pa
     };
   });
   await page.goto('/');
-  const play = page.getByRole('button', { name: 'Play track' });
+  const play = page.getByRole('button', { name: 'Play', exact: true });
   await expect(play).toBeEnabled();
   await play.click();
-  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
-  await expect.poll(async () => Number(await page.locator('[data-value="bass"]').textContent())).toBeGreaterThan(0);
+  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+  await expect.poll(async () => Number(await page.locator('.ab-readouts dd').first().textContent())).toBeGreaterThan(0);
   await page.waitForTimeout(1200);
-  await page.getByRole('button', { name: 'Pause' }).click();
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
   const time = await page.evaluate(() => (window as Window & { demoMedia: HTMLMediaElement }).demoMedia.currentTime);
-  await page.getByRole('button', { name: 'Play track' }).click();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   const resumed = await page.evaluate(() => (window as Window & { demoMedia: HTMLMediaElement }).demoMedia.currentTime);
   expect(resumed).toBeGreaterThanOrEqual(time);
-  await page.getByLabel('Demo track').selectOption('1');
-  await expect(page.getByRole('button', { name: 'Play track' })).toBeEnabled();
-  await expect(page.locator('[data-value="bass"]')).toHaveText('0.00');
+  await page.getByRole('button', { name: 'Next track' }).click();
+  await expect(page.locator('.ab-track')).toContainText('Drive');
+  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+  await expect.poll(async () => Number(await page.locator('.ab-readouts dd').first().textContent())).toBeGreaterThan(0);
 });
 
 test('microphone starts and stops with a real analyser', async ({ page, context }) => {
@@ -80,11 +81,12 @@ test('Three.js is lazy and its scene renders during playback', async ({ page }) 
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => requests.push(request.url()));
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Play track' })).toBeEnabled();
-  expect(requests.some(url => url.includes('three-scene-'))).toBeFalsy();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+  expect(requests.some(url => url.includes('sculpture-'))).toBeFalsy();
   await page.goto('/examples/three/');
-  await expect.poll(() => requests.some(url => url.includes('three-scene-'))).toBeTruthy();
-  await page.getByRole('button', { name: 'Play track' }).click();
+  await expect.poll(() => requests.some(url => url.includes('sculpture-'))).toBeTruthy();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect.poll(async () => Number(await page.locator('[data-value="bass"]').textContent())).toBeGreaterThan(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/three-desktop.png', fullPage: true });
@@ -101,9 +103,10 @@ test('docs copy, keyboard navigation and reduced motion work', async ({ page, co
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/examples/pulse/');
   await expect(page.getByText('Reduced motion:', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: 'Play track' }).click();
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect.poll(async () => Number(await page.locator('[data-value="bass"]').textContent())).toBeGreaterThan(0);
-  await expect(page.locator('.pulse-circle')).toHaveCSS('transform', 'matrix(0.8, 0, 0, 0.8, 0, 0)');
+  await expect(page.locator('.x-pulse')).toHaveCSS('transform', 'matrix(0.8, 0, 0, 0.8, 0, 0)');
   await page.goto('/');
   await page.keyboard.press('Tab');
   await expect(page.getByText('Skip to content', { exact: true })).toBeFocused();
@@ -114,17 +117,17 @@ test('docs copy, keyboard navigation and reduced motion work', async ({ page, co
 });
 
 test('load and microphone failures have actionable feedback', async ({ page, context }) => {
-  await page.route('**/audio/*.ogg', route => route.abort());
-  await page.goto('/');
+  await page.route('**/audio/*.m4a', route => route.abort());
+  await page.goto('/examples/pulse/');
   await expect(page.getByRole('alert')).toContainText('could not load');
-  await page.unroute('**/audio/*.ogg');
-  await page.getByLabel('Demo track').selectOption('1');
-  await expect(page.getByRole('button', { name: 'Play track' })).toBeEnabled();
+  await page.unroute('**/audio/*.m4a');
+  await page.getByLabel('Track').selectOption('1');
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
   await context.clearPermissions();
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Denied', 'NotAllowedError'));
   });
   await page.goto('/examples/microphone/');
   await page.getByRole('button', { name: 'Enable microphone' }).click();
-  await expect(page.getByRole('alert')).toContainText('Allow microphone access');
+  await expect(page.getByRole('alert')).toContainText('Microphone access failed');
 });

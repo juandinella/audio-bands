@@ -1,0 +1,66 @@
+/* AB-1 colour. Aluminium body and per-band colour after Teenage Engineering's
+   OP-1 (a control wears the colour of what it drives); one brand orange for
+   keys and lamps, set as the key colour on <Hardware>. High is drawn in that
+   same orange. */
+
+.ab-root {
+  --paper: oklch(0.94 0.002 250);
+
+  /* Lit things on the black screens. */
+  --glow: oklch(0.93 0 0);
+  --c-bass: oklch(0.7 0.15 252);
+  --c-mid: oklch(0.95 0 0);
+  --c-high: var(--key-glow);
+
+  /* The same bands as lamps on the aluminium (knob pointers and tick arcs). */
+  --lamp-bass: oklch(0.62 0.17 255);
+  --lamp-high: var(--key-lamp);
+
+  /* Printed legends. The kit's greys sit near 2.5:1 on aluminium; these
+     give 5:1 (API names) and ~4:1 (unchosen positions). */
+  --print: var(--ink);
+  --print-api: oklch(0.42 0.006 250);
+  --print-dim: oklch(0.48 0.006 250);
+}
+body { background: oklch(0.94 0.002 250); }
+
+/* Page text outside the device uses the same readable grey; the kit's
+   --dim (rgb 143 141 135) was 2.8:1 on this page. */
+.ab-root { --dim: var(--print-dim); }
+
+.ab-root [data-device] {
+  --body: linear-gradient(180deg, oklch(0.89 0.004 250), oklch(0.83 0.005 250));
+  --dim: var(--print-dim);
+  --legend-ink: var(--print-dim);
+}
+
+/* Screens: one band colour per column, ladder and readout. */
+.ab-root .ab-screen { color: var(--glow); --lcd-key: var(--glow); }
+.ab-root .ab-scope-canvas { color: var(--glow); }
+.ab-root .ab-ladder-screen [data-kit="bar-graph-bar"]:nth-child(1),
+.ab-root .ab-rta-screen [data-kit="bar-graph-bar"][data-band="bass"] { --lcd-key: var(--c-bass); }
+.ab-root .ab-ladder-screen [data-kit="bar-graph-bar"]:nth-child(2),
+.ab-root .ab-rta-screen [data-kit="bar-graph-bar"][data-band="mid"] { --lcd-key: var(--c-mid); }
+.ab-root .ab-ladder-screen [data-kit="bar-graph-bar"]:nth-child(3),
+.ab-root .ab-rta-screen [data-kit="bar-graph-bar"][data-band="high"] { --lcd-key: var(--c-high); }
+.ab-root .ab-readouts div:nth-child(1) dd { color: var(--c-bass); }
+.ab-root .ab-readouts div:nth-child(2) dd { color: var(--c-mid); }
+.ab-root .ab-readouts div:nth-child(3) dd { color: var(--c-high); }
+.ab-root .ab-xmark[data-mark="1"] { border-left-color: var(--c-bass); }
+.ab-root .ab-xmark[data-mark="2"] { border-left-color: var(--c-high); }
+
+/* Crossover knobs: a neutral cap; the band colour is in what lights up, the
+   pointer and the arc of ticks up to the setting. */
+.ab-root .ab-xover-ch[data-band="bass"] { --band-lamp: var(--lamp-bass); }
+.ab-root .ab-xover-ch[data-band="high"] { --band-lamp: var(--lamp-high); }
+.ab-root .ab-xover-ch :is([data-kit="knob-cap"], [data-kit="knob-ticks"]):not(#_):not(#_) {
+  --led-color: var(--band-lamp);
+  --lit-color: var(--band-lamp);
+}
+
+/* Printed legends. The kit embosses print with a white shadow, which blurs
+   10px text, so the API names go without it. */
+.ab-root [data-device] .ab-section-title { color: var(--print); }
+.ab-root [data-device] .ab-api { color: var(--print-api); text-shadow: none; }
+.ab-root [data-device] [data-kit="slide-switch-stop"]:not(#_):not(#_):not(#_) { color: var(--print-dim); }
+.ab-root [data-device] [data-kit="slide-switch-stop"]:is([data-checked], [aria-checked="true"]):not(#_):not(#_):not(#_) { color: var(--ink); }

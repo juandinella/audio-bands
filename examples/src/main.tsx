@@ -1,7 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
 import { Analytics } from '@vercel/analytics/react';
-import './index.css';
+import './docs/docs.css';
+import './examples/examples.css';
+import './landing/analyser.css';
+import './landing/theme.css';
 import App from './App';
 
 const path = `${window.location.pathname.replace(/\/+$/, '')}/`;

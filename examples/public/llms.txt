@@ -87,6 +87,8 @@ Read `snapshot()` inside a `useEffect` animation loop and cancel the RAF in its 
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
 - `setLoop(loop)` / `seek(seconds)` / `getDuration()` / `getCurrentTime()` — basic track transport helpers
 - `togglePlayPause()` is async and rejects if switching into playback fails
+- `setBandRanges(ranges)` / `setAnalyserConfig(source, config)` — change band ranges, `fftSize` and smoothing on a running instance without stopping playback (since 0.7)
+- `getBandRanges()` / `getAnalyserConfig(source?)` / `getSampleRate()` — read the current settings; a range share × `getSampleRate() / 2` gives Hz (since 0.7)
 - `getState()` — returns playback, mic, and error state
 - `destroy()` — closes AudioContext and stops mic stream
 
@@ -99,7 +101,7 @@ Read `snapshot()` inside a `useEffect` animation loop and cancel the RAF in its 
 - FFT and waveform arrays are reused, including those inside `snapshot()`. Copy with `.slice()` before retaining a frame
 - `load()` prepares the current track; call `play()` or `togglePlayPause()` to start playback
 - `loadError` is for track loading failures; `playbackError` is for play rejections such as autoplay policy
-- In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance
+- In the React hook, changing analyser config or band ranges recreates the underlying `AudioBands` instance; use the live setters to adjust analysis while audio plays
 - Root export is framework-agnostic, `@juandinella/audio-bands/core` is explicit core-only, and `@juandinella/audio-bands/react` exposes the hook
 - React is an optional peer dependency
 

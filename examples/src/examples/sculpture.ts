@@ -1,12 +1,18 @@
 import * as THREE from 'three';
-import type { Bands } from '../../src/types';
+import type { Bands } from '@juandinella/audio-bands';
 
+// The site's band colours, in sRGB for three.js.
+const BASS = new THREE.Color('#4b8ff0');
+const MID = new THREE.Color('#f2f2f2');
+const HIGH = new THREE.Color('#ff6a2a');
+
+// The examples' sculpture: the site's three-scene, recoloured by band.
 export function createSculpture(canvas: HTMLCanvasElement) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.z = 4.5;
+  camera.position.z = 5.6; // room for the sphere at full bass (radius ~1.65)
   const count = 6000;
   const base = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -16,7 +22,9 @@ export function createSculpture(canvas: HTMLCanvasElement) {
     const r = Math.sqrt(1 - y * y);
     const angle = i * Math.PI * (3 - Math.sqrt(5));
     base.set([Math.cos(angle) * r, y, Math.sin(angle) * r], i * 3);
-    color.setHSL(0.2 + (y + 1) * 0.12, 0.6, 0.64);
+    // Bass blue at the bottom, mid white at the waist, high orange at the top.
+    const t = (y + 1) / 2;
+    color.copy(t < 0.5 ? BASS.clone().lerp(MID, t * 2) : MID.clone().lerp(HIGH, (t - 0.5) * 2));
     colors.set([color.r, color.g, color.b], i * 3);
   }
   const positions = base.slice();

@@ -26,7 +26,7 @@ export function renderHead(path: string) {
   const head = `<title>${escape(title)}</title>
     <meta name="description" content="${escape(description)}" />
     ${page ? `<link rel="canonical" href="${url}" />` : '<meta name="robots" content="noindex" />'}
-    <meta name="theme-color" content="#10120f" />
+    <meta name="theme-color" content="#e9eaec" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="audio-bands" />
     <meta property="og:title" content="${escape(title)}" />

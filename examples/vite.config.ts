@@ -10,8 +10,8 @@ export default defineConfig({
         const path = req.url?.split('?')[0];
         const sources: Record<string, string> = {
           '/docs.md': '../README.md',
-          '/source/Demo.tsx': 'src/Demo.tsx',
-          '/source/three-scene.ts': 'src/three-scene.ts',
+          '/source/Stage.tsx': 'src/examples/Stage.tsx',
+          '/source/sculpture.ts': 'src/examples/sculpture.ts',
           '/source/content.ts': 'src/content.ts',
         };
         if (!path || !sources[path]) return next();
@@ -30,6 +30,9 @@ export default defineConfig({
       return html.replace('<!--page-head-->', renderHead(path));
     },
   }],
+  // React is aliased to one absolute copy and bundled into the SSR build; the
+  // UI SDK has to be bundled too, or it loads a second React from node_modules.
+  ssr: { noExternal: ['@ui-sdk/react', '@ui-sdk/core'] },
   resolve: {
     alias: [
       {

@@ -1,0 +1,237 @@
+/* Layout for the AB-1 study. The kit owns every control's look; this file
+   places them and draws the parts the kit doesn't have (meter face, marks). */
+html, body { margin: 0; }
+
+.ab-root {
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ab-page {
+  display: grid;
+  justify-items: center;
+  /* The page breathes; the device keeps its own tight panel spacing. */
+  gap: clamp(28px, 4.5vh, 44px);
+  max-width: 1120px;
+  margin-inline: auto;
+  padding: clamp(28px, 6vh, 64px) clamp(16px, 4vw, 40px) 128px;
+}
+
+.ab-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+}
+
+/* Masthead */
+.ab-masthead { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.ab-kicker {
+  margin: 0;
+  font: 500 10px/1.4 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.ab-masthead h1 {
+  margin: 0;
+  font-weight: 200;
+  font-size: clamp(30px, 4.4vw, 48px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.ab-lede { max-width: 84ch; margin: 0; font-size: 13px; line-height: 1.6; color: var(--dim); text-wrap: balance; }
+
+/* Device */
+.ab-main { display: grid; justify-items: center; width: 100%; }
+.ab-page [data-device] { width: min(1040px, 100%); box-sizing: border-box; }
+.ab-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  grid-template-areas:
+    "rta bands"
+    "scope vu"
+    "controls controls";
+  gap: 14px 22px;
+  padding: 2px 2px 0;
+}
+
+.ab-rta { grid-area: rta; }
+.ab-ladders { grid-area: bands; }
+.ab-scope { grid-area: scope; }
+.ab-vu { grid-area: vu; }
+.ab-controls { grid-area: controls; }
+
+.ab-section { display: grid; gap: 8px; min-width: 0; }
+.ab-meter { grid-template-rows: auto 1fr; }
+.ab-control { grid-template-rows: auto 1fr auto; }
+.ab-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.ab-section-title {
+  margin: 0;
+  font: var(--label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.ab-section-body { display: grid; align-content: center; min-width: 0; }
+.ab-api {
+  font: 10px/1.3 var(--sans);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Indicators */
+
+.ab-screen {
+  position: relative;
+  padding: 12px 14px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.ab-rta-screen [data-kit="bar-graph"] { gap: 2px; }
+.ab-xmark {
+  position: absolute;
+  top: 8px;
+  bottom: 26px;
+  width: 0;
+  border-left: 1px dashed rgb(255 255 255 / 0.45);
+}
+.ab-xmark[data-mark="1"] { left: calc(14px + var(--x1) * (100% - 28px)); }
+.ab-xmark[data-mark="2"] { left: calc(14px + var(--x2) * (100% - 28px)); }
+.ab-axis {
+  position: relative;
+  height: 12px;
+  margin-top: 8px;
+  color: rgb(255 255 255 / 0.6); /* 7.4:1 on the black screen; 0.45 was 4.4:1 */
+  font-variant-numeric: tabular-nums;
+}
+/* Decade marks sit at their log position under the columns. */
+.ab-axis span { position: absolute; left: calc(var(--at) * 100%); translate: -50% 0; }
+.ab-axis span:first-child { translate: 0 0; }
+.ab-axis .ab-axis-unit { left: auto; right: 0; translate: 0 0; }
+
+.ab-ladder-screen { display: grid; gap: 8px; }
+.ab-ladder-screen [data-kit="bar-graph"] { gap: 18px; }
+.ab-readouts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 0; }
+.ab-readouts div { display: grid; gap: 2px; }
+.ab-readouts dt { color: rgb(255 255 255 / 0.6); text-transform: uppercase; }
+.ab-readouts dd { margin: 0; color: #fff; font-variant-numeric: tabular-nums; font-size: 13px; }
+
+.ab-scope-canvas {
+  display: block;
+  width: 100%;
+  height: 76px;
+  --scope-grid: rgb(255 255 255 / 0.1);
+}
+
+/* Moving-coil meter: a printed cream face behind glass. */
+.vu {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 14px 12px 6px;
+  overflow: hidden;
+  border-radius: calc(8px * var(--corner-scale));
+  background: linear-gradient(180deg, #f6f1df, #ebe4cc);
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 0.14),
+    inset 0 2px 6px rgb(0 0 0 / 0.12),
+    0 1px 0 #fff;
+}
+.vu svg { display: block; width: 100%; height: 100%; max-height: 104px; }
+.vu-arc { fill: none; stroke: #2a2a26; stroke-width: 1; }
+.vu-hot { stroke: #c8341f; stroke-width: 3; }
+.vu-tick { stroke: #2a2a26; stroke-width: 1; }
+.vu-major { stroke-width: 1.5; }
+.vu-num { font: 9px var(--sans); fill: #2a2a26; text-anchor: middle; dominant-baseline: middle; }
+.vu-name { font: 500 8px var(--sans); fill: #6b6656; text-anchor: middle; letter-spacing: 0.12em; text-transform: uppercase; }
+.vu-needle { stroke: #1b1b19; stroke-width: 1.4; stroke-linecap: round; }
+
+/* Controls: one row of sections divided by printed hairlines. */
+.ab-controls {
+  display: grid;
+  grid-template-columns: 112px minmax(180px, 1fr) 196px 168px minmax(240px, 1.3fr);
+  gap: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.ab-controls > .ab-section { padding-inline: 18px; border-left: 1px solid var(--line); }
+.ab-controls > .ab-section:first-child { padding-left: 4px; border-left: 0; }
+
+.ab-deck .ab-section-body { gap: 10px; }
+.ab-deck [data-kit="lcd"] { width: 100%; }
+.ab-track { display: block; margin-top: 2px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-keys { display: flex; gap: 8px; }
+.ab-keys [data-kit="button"] { flex: 1; display: inline-flex; align-items: center; justify-content: center; }
+/* 44px keys: the kit sets device keys to 38px. */
+.ab-root .ab-keys [data-kit="button"]:not(#_):not(#_) { height: 44px; }
+/* The kit picks the option nearest the touch anywhere on a switch, so each
+   option's target is the switch divided by its options: 3 × 44. */
+.ab-root .ab-resolution [data-kit="slide-switch"]:not(#_):not(#_) { width: 132px; }
+/* The lever rests on its first stop's centre, so the switch starts ~14px
+   before the lever. Pull it back so the lever lines up with the section's
+   printed text. */
+.ab-root :is(.ab-input, .ab-resolution) [data-kit="slide-switch"]:not(#_):not(#_) { translate: -15px 0; }
+
+.ab-xover-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ab-xover-ch { display: grid; justify-items: center; gap: 8px; }
+.ab-xover-ch [data-kit="lcd"] { width: 100%; }
+.ab-unit { margin-left: 4px; font-size: 10px; }
+
+/* Under the device */
+.ab-foot { display: grid; justify-items: center; gap: 48px; margin-top: 16px; text-align: center; }
+/* Each group keeps its parts close; the groups sit well apart. */
+.ab-foot-group { display: grid; justify-items: center; gap: 16px; }
+.ab-foot-group + .ab-foot-group { gap: 8px; }
+.ab-note { max-width: 100ch; margin: 0; font-size: 11px; line-height: 1.6; color: var(--dim); text-wrap: balance; }
+.ab-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 6px 6px 6px 20px;
+  /* Concentric with the key inside it: the key's 20px radius plus the padding. */
+  border-radius: 26px;
+  background: var(--panel-hi);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08), 0 1px 0 #fff;
+}
+.ab-install code { min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: all; }
+.ab-install [data-kit="button"] { flex: none; min-width: 76px; }
+.ab-credits { width: min(100%, 760px); box-sizing: border-box; padding-top: 28px; border-top: 1px solid var(--line); max-width: none; margin: 0; font-size: 10px; line-height: 1.7; color: var(--dim); text-wrap: balance; }
+.ab-credits a { color: inherit; text-underline-offset: 3px; }
+.ab-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 4px; font-size: 12px; }
+.ab-links a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding-inline: 8px; color: var(--ink); text-decoration: none; }
+@media (hover: hover) and (pointer: fine) {
+  .ab-links a:hover { text-decoration: underline; text-underline-offset: 4px; }
+}
+
+/* Narrow: the panel reflows instead of shrinking, so labels stay legible.
+   The DOM order puts the controls right after the primary meters. */
+@media (max-width: 960px) {
+  .ab-controls { grid-template-columns: 112px minmax(0, 1fr) 196px; row-gap: 18px; }
+  .ab-controls > .ab-resolution { min-width: 168px; }
+  .ab-controls > .ab-section:nth-child(4) { padding-left: 4px; border-left: 0; }
+  .ab-xover { grid-column: span 2; }
+}
+@media (max-width: 640px) {
+  .ab-panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "rta" "bands" "controls" "scope" "vu";
+  }
+  .ab-controls { grid-template-columns: 96px minmax(0, 1fr); }
+  .ab-controls > .ab-section { padding-inline: 12px; }
+  .ab-controls > .ab-section:nth-child(odd) { padding-left: 4px; border-left: 0; }
+  .ab-controls > .ab-section:nth-child(even) { border-left: 1px solid var(--line); }
+  .ab-xover { grid-column: 1 / -1; padding-left: 4px !important; border-left: 0 !important; }
+  .ab-control .ab-api { white-space: normal; overflow-wrap: anywhere; }
+}

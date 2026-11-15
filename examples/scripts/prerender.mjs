@@ -18,7 +18,7 @@ const origin = 'https://audio-bands.juandinella.com';
 await writeFile(resolve(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${pages.map(({ path }) => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
 await copyFile(resolve('../README.md'), resolve(dist, 'docs.md'));
 await mkdir(resolve(dist, 'source'), { recursive: true });
-for (const file of ['Demo.tsx', 'three-scene.ts', 'content.ts']) {
-  await copyFile(resolve('src', file), resolve(dist, 'source', file));
+for (const file of ['examples/Stage.tsx', 'examples/sculpture.ts', 'content.ts']) {
+  await copyFile(resolve('src', file), resolve(dist, 'source', file.split('/').pop()));
 }
 console.log(`Prerendered ${pages.length} pages, a 404 page, sitemap, Markdown documentation and example sources.`);

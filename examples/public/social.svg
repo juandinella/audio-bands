@@ -1,11 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#10120f"/>
-  <g fill="#c8f080"><rect x="72" y="62" width="7" height="20"/><rect x="84" y="50" width="7" height="32"/><rect x="96" y="58" width="7" height="24"/></g>
-  <g font-family="sans-serif"><text x="122" y="78" font-size="30" font-weight="bold" fill="#eef0e7">audio-bands</text>
-  <text x="72" y="248" font-size="100" letter-spacing="-5" fill="#eef0e7">Audio in.</text>
-  <text x="72" y="356" font-size="100" letter-spacing="-5" fill="#c8f080">Numbers out.</text>
-  <text x="76" y="432" font-size="25" fill="#a5ad9e">Browser audio analysis. Your renderer. Your idea.</text>
-  <text x="76" y="558" font-size="20" fill="#a5ad9e">JavaScript · React · Canvas · Three.js</text></g>
-  <g><rect x="871" y="275" width="62" height="120" fill="#c8f080"/><rect x="958" y="215" width="62" height="180" fill="#a1c695"/><rect x="1045" y="315" width="62" height="80" fill="#7aaea4"/></g>
-  <path d="M72 492H1128" stroke="#30372b"/>
+  <rect width="1200" height="630" fill="#e9eaec"/>
+  <g font-family="IBM Plex Mono, ui-monospace, monospace">
+    <circle cx="80" cy="74" r="6" fill="#f2551d"/>
+    <text x="98" y="82" font-size="24" font-weight="500" letter-spacing="1" fill="#1b1d20">AUDIO-BANDS</text>
+    <text x="72" y="250" font-size="96" font-weight="200" letter-spacing="-3" fill="#1b1d20">AUDIO IN.</text>
+    <text x="72" y="356" font-size="96" font-weight="200" letter-spacing="-3" fill="#1b1d20">NUMBERS OUT.</text>
+    <text x="76" y="432" font-size="24" fill="#585c62">Browser audio analysis. Your renderer. Your idea.</text>
+    <text x="76" y="558" font-size="20" fill="#585c62">JavaScript · React · Canvas · Three.js</text>
+  </g>
+  <rect x="852" y="190" width="276" height="220" rx="18" fill="#0d0f12"/>
+  <g>
+    <rect x="884" y="250" width="56" height="130" fill="#4b8ff0"/>
+    <rect x="962" y="300" width="56" height="80" fill="#f2f2f2"/>
+    <rect x="1040" y="340" width="56" height="40" fill="#f2551d"/>
+  </g>
+  <path d="M72 492H1128" stroke="#c8cacd"/>
 </svg>
