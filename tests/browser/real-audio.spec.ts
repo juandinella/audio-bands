@@ -82,3 +82,36 @@ test('changes a real analyser live without interrupting playback', async ({ page
   });
   await page.getByRole('button', { name: 'Destroy core' }).click();
 });
+
+test('default bands put real tones in bass, mid and high by frequency', async ({ page }) => {
+  await page.goto('/real.html');
+  await expect.poll(() => page.evaluate(() => window.audioTest.loaded)).toBe(true);
+  // A click gives the page user activation, so later play() calls are allowed.
+  await page.getByRole('button', { name: 'Play track', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.audioTest.core.getState().isPlaying)).toBe(true);
+
+  const loudest = await page.evaluate(async () => {
+    const { core, tone } = window.audioTest;
+    const result: Record<number, string> = {};
+    for (const frequency of [100, 1000, 8000]) {
+      const url = tone(frequency);
+      await core.load(url);
+      await core.play();
+      // Read every frame, as a render loop does: smoothing only advances on reads.
+      const until = performance.now() + 500;
+      while (performance.now() < until) {
+        core.getBands();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      const { bass, mid, high } = core.getBands();
+      const bands = { bass, mid, high };
+      result[frequency] = (Object.keys(bands) as (keyof typeof bands)[])
+        .reduce((a, b) => (bands[a] >= bands[b] ? a : b));
+      URL.revokeObjectURL(url);
+    }
+    return result;
+  });
+
+  expect(loudest).toEqual({ 100: 'bass', 1000: 'mid', 8000: 'high' });
+  await page.getByRole('button', { name: 'Destroy core' }).click();
+});

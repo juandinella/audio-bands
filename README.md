@@ -178,9 +178,9 @@ const waveform = audio.getWaveform('mic');
 
 `getBands()` returns three coarse analyser regions plus a convenience summary value:
 
-- `bass`, `mid`, and `high` are normalized slices of the analyser spectrum, not fixed acoustic bands in Hz
-- the default split is percentage-based (`0-0.08`, `0.08-0.4`, `0.4-1`) over the available FFT bins
-- those regions therefore depend on analyser resolution and the underlying audio context sample rate
+- by default, `bass` covers 0–250 Hz, `mid` 250–4000 Hz and `high` 4000–16000 Hz. These are resolved against the audio context's sample rate, so they cover the same frequencies at 44.1, 48 or 96 kHz. `high` stops at 16 kHz because compressed audio carries little above it
+- a range you set yourself is a share of the spectrum from `0` to `1` (see [Notes](#notes)), so its frequencies follow the sample rate
+- each value is the average of the analyser's byte bins in that range, from `0` to `1`. How finely the bins split the range depends on `fftSize`; the default `1024` gives about 47 Hz per bin at 48 kHz
 - `overall` is a UI-oriented weighted summary (`bass * 0.5 + mid * 0.3 + high * 0.2`), not a perceptual loudness metric
 
 Use these values as stable control signals for interaction and motion. If you need tighter semantic control, define `customBands`. If you need physically meaningful bin-level data, use `getFftData()` or `snapshot()`.
@@ -343,14 +343,15 @@ type AudioBandsState = {
 - `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.
 - In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance. To adjust analysis without interrupting playback, keep those options stable and call `setAnalyserConfig()` or `setBandRanges()` instead. Values set that way belong to the current instance; recreating it starts again from the options.
 - `setBandRanges()` and `setAnalyserConfig()` validate like the constructor options and throw `AudioBandsError` with code `invalid_config`, leaving the previous settings in place. A new `fftSize` replaces the buffers returned by `snapshot()`, `getFftData()` and `getWaveform()`; read the buffers again after changing it.
-- A band range covers a share of the spectrum from 0 Hz to half the sample rate, in equal-width bins. With a 48 kHz context, the default `bass` range (`0`–`0.08`) spans roughly 0–1.9 kHz. Multiply by `getSampleRate() / 2` to show a range in Hz.
+- A band range you set covers a share of the spectrum from 0 Hz to half the sample rate, in equal-width bins. Multiply by `getSampleRate() / 2` to show it in Hz, or divide a frequency by it to build one: `{ from: 0, to: 120 / (audio.getSampleRate()! / 2) }`.
+- The default `bass` / `mid` / `high` ranges are defined in Hz. `getBandRanges()` returns them as shares of the spectrum at the context's sample rate, or at 48 kHz before the first `load()` or `enableMic()`.
+- Default analyser settings: `fftSize: 1024` for music and mic, `smoothingTimeConstant: 0.7` for music and `0.8` for mic.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `snapshot()` is the preferred way to read analysis inside `requestAnimationFrame`.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` are convenience reads when you only need one view of the current frame.
 - `getFftData()`, `getWaveform()`, and the `fft` / `waveform` fields of `snapshot()` reuse their underlying buffers. Later reads overwrite earlier data. Use `frame.fft?.slice()` and `frame.waveform?.slice()` to retain a frame; treat the shared buffers as read-only. `bands` and `customBands` are new objects on each snapshot.
 - `fftSize` must be a power of two between `32` and `32768`.
 - Band ranges are normalized from `0` to `1`, where `0` is the start of the analyser spectrum and `1` is the end.
-- The default `bass` / `mid` / `high` labels are convenience names for analyser regions, not fixed Hz buckets.
 - `overall` is intended as a simple UI summary, not as an acoustically weighted loudness value.
 
 ## Development

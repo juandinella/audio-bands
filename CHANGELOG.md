@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
+## Unreleased
+
+### Changed
+
+- The default `bass` / `mid` / `high` ranges are now defined in Hz: 0–250, 250–4000 and 4000–16000. They used to be shares of the whole spectrum (`0–0.08`, `0.08–0.4`, `0.4–1`), which at 48 kHz meant `bass` covered 0–1.9 kHz and `high` 9.6–24 kHz, a region compressed audio barely uses. The new ranges are resolved against the context's sample rate.
+- Default `fftSize` is now `1024` for music and mic (was `256`), so `bass` spans several bins instead of one or two. Default music `smoothingTimeConstant` is now `0.7` (was `0.85`); mic stays at `0.8`.
+- Measured on four music tracks, `high` averages about twice as high as before (0.32 instead of 0.17), and all three bands move about twice as much from frame to frame. Visuals tuned to the old values will react differently. To keep the previous behaviour, pass `bandRanges: { bass: { from: 0, to: 0.08 }, mid: { from: 0.08, to: 0.4 }, high: { from: 0.4, to: 1 } }` and `music: { fftSize: 256, smoothingTimeConstant: 0.85 }, mic: { fftSize: 256 }`.
+- `getBandRanges()` returns the default ranges at the current sample rate, or at 48 kHz before an `AudioContext` exists.
+
 ## 0.7.0 - 2026-11-15
 
 ### Added
