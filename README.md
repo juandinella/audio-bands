@@ -244,6 +244,11 @@ new AudioBands(options?: AudioBandsOptions)
 | `getCustomBands(source?)` | Returns normalized values for configured custom bands. |
 | `getFftData(source?)`   | Returns raw `Uint8Array` frequency bins. |
 | `getWaveform(source?)`  | Returns raw time-domain data for `'music'` or `'mic'`. |
+| `setBandRanges(ranges)` | Change the `bass` / `mid` / `high` ranges live. Bands left out keep their current range. |
+| `getBandRanges()`       | Returns a copy of the current `bass` / `mid` / `high` ranges. |
+| `setAnalyserConfig(source, config)` | Change `fftSize` and/or `smoothingTimeConstant` for `'music'` or `'mic'` live. Fields left out keep their current value. |
+| `getAnalyserConfig(source?)` | Returns the current analyser settings for `'music'` (default) or `'mic'`. |
+| `getSampleRate()`       | Returns the `AudioContext` sample rate, or `null` before the first `load()` or `enableMic()`. |
 | `getState()`            | Returns the current playback/mic/error state. |
 | `destroy()`             | Stop playback, release the mic and close the `AudioContext`. |
 
@@ -273,6 +278,11 @@ const {
   getCustomBands,
   getFftData,
   getWaveform,
+  setBandRanges,
+  getBandRanges,
+  setAnalyserConfig,
+  getAnalyserConfig,
+  getSampleRate,
 } = useAudioBands(options);
 ```
 
@@ -331,7 +341,9 @@ type AudioBandsState = {
 - `isPlaying` follows the underlying media element events, so it falls back to `false` when the track pauses or reaches `ended`.
 - `loadError` stores track loading failures only.
 - `playbackError` stores playback failures for the current track, such as autoplay-policy rejections.
-- In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance.
+- In the React hook, changing `music`, `mic`, `bandRanges`, or `customBands` recreates the underlying `AudioBands` instance. To adjust analysis without interrupting playback, keep those options stable and call `setAnalyserConfig()` or `setBandRanges()` instead. Values set that way belong to the current instance; recreating it starts again from the options.
+- `setBandRanges()` and `setAnalyserConfig()` validate like the constructor options and throw `AudioBandsError` with code `invalid_config`, leaving the previous settings in place. A new `fftSize` replaces the buffers returned by `snapshot()`, `getFftData()` and `getWaveform()`; read the buffers again after changing it.
+- A band range covers a share of the spectrum from 0 Hz to half the sample rate, in equal-width bins. With a 48 kHz context, the default `bass` range (`0`–`0.08`) spans roughly 0–1.9 kHz. Multiply by `getSampleRate() / 2` to show a range in Hz.
 - The mic analyser is not connected to `AudioContext.destination`, so it will not feed back into the speakers.
 - `snapshot()` is the preferred way to read analysis inside `requestAnimationFrame`.
 - `getBands()`, `getCustomBands()`, `getFftData()`, and `getWaveform()` are convenience reads when you only need one view of the current frame.
@@ -349,7 +361,7 @@ type AudioBandsState = {
 - `npx playwright install chromium` installs the browser needed for local tests.
 - `npm run test:browser` checks the built bundles and native Web Audio playback/mic lifecycle in Chromium. Firefox and WebKit are not covered by this suite.
 - `npm run test:release` packs the library and verifies the published tarball shape from a temporary consumer app.
-- Pull requests, pushes to `main`, and `v*` tags run the release-check workflow. Use the manual `Publish to npm` GitHub Actions workflow against a verified release ref.
+- Pull requests, pushes to `main`, and `v*` tags run the release-check workflow. Use the manual `Publish to npm` GitHub Actions workflow with the release tag (`vX.Y.Z`). It refuses any other ref, a tag that does not match `package.json`, or a tag that is not on `main`, and it runs in the `npm-publish` environment.
 
 ## License
 

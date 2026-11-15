@@ -4,11 +4,13 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { AudioBands } from './core';
 import type {
+  AudioAnalyserConfig,
   AudioBandsOptions,
   AudioBandsSnapshot,
   AudioBandsState,
   AudioSource,
   Bands,
+  ClassicBandRanges,
 } from './types';
 import type { AudioBandsError } from './errors';
 
@@ -35,6 +37,11 @@ export type UseAudioBandsReturn = {
   getCustomBands: (source?: AudioSource) => Record<string, number>;
   getFftData: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
   getWaveform: (source?: AudioSource) => Uint8Array<ArrayBuffer> | null;
+  setBandRanges: (ranges: ClassicBandRanges) => void;
+  getBandRanges: () => Required<ClassicBandRanges>;
+  setAnalyserConfig: (source: AudioSource, config: AudioAnalyserConfig) => void;
+  getAnalyserConfig: (source?: AudioSource) => Required<AudioAnalyserConfig>;
+  getSampleRate: () => number | null;
 };
 
 const INITIAL_STATE: AudioBandsState = {
@@ -128,6 +135,9 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   const [state, setState] = useState<AudioBandsState>(INITIAL_STATE);
   const latestOptions = useRef(options);
   const instance = useRef<AudioBands | null>(null);
+  // Set on unmount. Calls that arrive later go to this destroyed instance and fail,
+  // instead of creating a new one that could open the mic and never be cleaned up.
+  const unmountedInstance = useRef<AudioBands | null>(null);
   const structuralOptionsKey = getStructuralOptionsKey(options);
   const structuralOptionsKeyRef = useRef(structuralOptionsKey);
 
@@ -135,6 +145,7 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
 
   const getOrCreateInstance = (): AudioBands => {
     if (instance.current) return instance.current;
+    if (unmountedInstance.current) return unmountedInstance.current;
 
     const next = createAudioBandsInstance(latestOptions.current, latestOptions, setState, instance);
     instance.current = next;
@@ -145,12 +156,15 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
   getOrCreateInstance();
 
   useEffect(() => {
+    // StrictMode runs this effect again after a simulated unmount; start fresh.
+    unmountedInstance.current = null;
     const current = getOrCreateInstance();
     setState(current.getState());
 
     return () => {
       const active = instance.current;
       instance.current = null;
+      unmountedInstance.current = active;
       active?.destroy();
     };
   }, []);
@@ -227,6 +241,26 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     return getOrCreateInstance().getWaveform(source);
   }, []);
 
+  const setBandRanges = useCallback((ranges: ClassicBandRanges) => {
+    getOrCreateInstance().setBandRanges(ranges);
+  }, []);
+
+  const getBandRanges = useCallback(() => {
+    return getOrCreateInstance().getBandRanges();
+  }, []);
+
+  const setAnalyserConfig = useCallback((source: AudioSource, config: AudioAnalyserConfig) => {
+    getOrCreateInstance().setAnalyserConfig(source, config);
+  }, []);
+
+  const getAnalyserConfig = useCallback((source?: AudioSource) => {
+    return getOrCreateInstance().getAnalyserConfig(source);
+  }, []);
+
+  const getSampleRate = useCallback(() => {
+    return getOrCreateInstance().getSampleRate();
+  }, []);
+
   return {
     isPlaying: state.isPlaying,
     micActive: state.micActive,
@@ -250,5 +284,10 @@ export function useAudioBands(options: AudioBandsOptions = {}): UseAudioBandsRet
     getCustomBands,
     getFftData,
     getWaveform,
+    setBandRanges,
+    getBandRanges,
+    setAnalyserConfig,
+    getAnalyserConfig,
+    getSampleRate,
   };
 }

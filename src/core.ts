@@ -169,9 +169,9 @@ function cloneState(state: AudioBandsState): AudioBandsState {
  */
 export class AudioBands {
   private options: AudioBandsOptions;
-  private readonly musicConfig: Required<AudioAnalyserConfig>;
-  private readonly micConfig: Required<AudioAnalyserConfig>;
-  private readonly classicRanges: Record<keyof Omit<Bands, 'overall'>, BandRange>;
+  private musicConfig: Required<AudioAnalyserConfig>;
+  private micConfig: Required<AudioAnalyserConfig>;
+  private classicRanges: Record<keyof Omit<Bands, 'overall'>, BandRange>;
   private readonly customBandRanges: CustomBandRanges;
 
   private readonly state: AudioBandsState = {
@@ -212,6 +212,62 @@ export class AudioBands {
 
   getState(): AudioBandsState {
     return cloneState(this.state);
+  }
+
+  /**
+   * Change the bass/mid/high ranges without recreating the instance. Bands left
+   * out keep their current range. Invalid input throws and changes nothing.
+   */
+  setBandRanges(ranges: ClassicBandRanges): void {
+    this.classicRanges = {
+      bass: normalizeRange('bass', ranges.bass ?? this.classicRanges.bass),
+      mid: normalizeRange('mid', ranges.mid ?? this.classicRanges.mid),
+      high: normalizeRange('high', ranges.high ?? this.classicRanges.high),
+    };
+  }
+
+  getBandRanges(): Required<ClassicBandRanges> {
+    const { bass, mid, high } = this.classicRanges;
+    return { bass: { ...bass }, mid: { ...mid }, high: { ...high } };
+  }
+
+  /**
+   * Change a source's analyser settings live. Fields left out keep their
+   * current value. Invalid input throws and changes nothing. A new `fftSize`
+   * replaces the buffers that `snapshot()`, `getFftData()` and `getWaveform()`
+   * return.
+   */
+  setAnalyserConfig(source: AudioSource, config: AudioAnalyserConfig): void {
+    const mic = source === 'mic';
+    const next = normalizeAnalyserConfig(config, mic ? this.micConfig : this.musicConfig);
+    if (mic) this.micConfig = next;
+    else this.musicConfig = next;
+
+    const analyser = mic ? this.micAnalyser : this.musicAnalyser;
+    if (!analyser) return;
+
+    analyser.smoothingTimeConstant = next.smoothingTimeConstant;
+    if (analyser.fftSize === next.fftSize) return;
+
+    analyser.fftSize = next.fftSize;
+    const frequency = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+    const waveform = new Uint8Array(analyser.fftSize) as Uint8Array<ArrayBuffer>;
+    if (mic) {
+      this.micData = frequency;
+      this.micWaveformData = waveform;
+    } else {
+      this.musicData = frequency;
+      this.musicWaveformData = waveform;
+    }
+  }
+
+  getAnalyserConfig(source: AudioSource = 'music'): Required<AudioAnalyserConfig> {
+    return { ...(source === 'mic' ? this.micConfig : this.musicConfig) };
+  }
+
+  /** The `AudioContext` sample rate, or `null` before the first `load()` or `enableMic()`. */
+  getSampleRate(): number | null {
+    return this.ctx?.sampleRate ?? null;
   }
 
   getCustomBands(source: AudioSource = 'music'): Record<string, number> {
