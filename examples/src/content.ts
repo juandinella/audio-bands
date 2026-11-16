@@ -15,7 +15,7 @@ export const faqs = [
   ['What is audio-bands?', 'audio-bands is a headless JavaScript library for browser audio analysis. It turns music or microphone input into normalized bass, mid and high values, custom bands, FFT bins and waveform data. You choose how to render them.'],
   ['Does it require React?', 'No. The core works with vanilla JavaScript, Canvas, Three.js or any framework. An optional React hook manages the audio lifecycle for React applications.'],
   ['Does it draw a visualizer for me?', 'No. It provides audio data and playback controls, without a renderer. The examples on this site show how to connect that data to CSS, Canvas and Three.js.'],
-  ['Are bass, mid and high fixed frequency ranges?', 'No. They are normalized regions of the analyser spectrum, not fixed bands in Hz. Their frequency boundaries depend on FFT resolution and sample rate. The values range from 0 to 1.'],
+  ['Are bass, mid and high fixed frequency ranges?', 'By default, yes: bass is 0–250 Hz, mid 250–4000 Hz and high 4000–16000 Hz, whatever the sample rate. Ranges you set yourself are shares of the spectrum from 0 Hz to half the sample rate. Each edge snaps to a whole FFT bin, and each value ranges from 0 to 1.'],
   ['Can I use music and a microphone together?', 'Yes. Music and microphone have separate analysers. Read snapshot(\'music\') and snapshot(\'mic\') independently. Microphone access requires permission and HTTPS or localhost.'],
 ] as const;
 

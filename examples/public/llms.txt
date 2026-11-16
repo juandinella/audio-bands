@@ -79,9 +79,9 @@ Read `snapshot()` inside a `useEffect` animation loop and cancel the RAF in its 
 
 - `snapshot(source?)` — preferred analysis read; returns `{ bands, customBands, fft, waveform }` using one frequency read and one time-domain read
 - `getBands(source?)` — returns `{ bass, mid, high, overall }` for `'music'` (default) or `'mic'`
-- `bass` / `mid` / `high` are coarse analyser regions, not fixed Hz bands; `overall` is a simple UI-oriented weighted summary
+- `bass` / `mid` / `high` default to 0–250 Hz, 250–4000 Hz and 4000–16000 Hz at any sample rate (since 0.8); ranges you set are shares of the spectrum from 0 to Nyquist. `overall` is a simple UI-oriented weighted summary
 - `getCustomBands(source?)` — returns normalized values for configured custom bands
-- `getFftData(source?)` — returns raw `Uint8Array` with `fftSize / 2` frequency bins (128 by default, values 0–255)
+- `getFftData(source?)` — returns raw `Uint8Array` with `fftSize / 2` frequency bins (512 by default, values 0–255)
 - `getWaveform(source?)` — returns time-domain waveform for `'music'` (default) or `'mic'` as `Uint8Array`
 - `enableMic()` / `disableMic()` — mic input, not connected to destination (no feedback)
 - `load(url)` / `play()` / `pause()` — transport controls split from analyser setup
