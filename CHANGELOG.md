@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 This changelog was reconstructed from release commits and tags for the early versions of the package.
 
-## Unreleased
+## 0.8.0 - 2026-11-15
 
 ### Changed
 
