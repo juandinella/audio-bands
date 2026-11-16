@@ -41,6 +41,7 @@ export function renderHead(path: string) {
     <meta name="twitter:description" content="${escape(description)}" />
     <meta name="twitter:image" content="${origin}/social.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replaceAll('<', '\\u003c')}</script>`;
   return head;
 }

@@ -17,7 +17,7 @@ test('every route has crawlable HTML and unique metadata before JavaScript', asy
     titles.add(await page.title());
   }
   expect(titles.size).toBe(pages.length);
-  for (const asset of ['/robots.txt', '/sitemap.xml', '/llms.txt', '/docs.md', '/social.png', '/source/Stage.tsx', '/source/sculpture.ts']) {
+  for (const asset of ['/robots.txt', '/sitemap.xml', '/llms.txt', '/docs.md', '/social.png', '/favicon.svg', '/apple-touch-icon.png', '/source/Stage.tsx', '/source/sculpture.ts']) {
     const response = await request.get(asset);
     expect(response.ok(), asset).toBeTruthy();
     expect((await response.body()).length).toBeGreaterThan(30);
