@@ -12,20 +12,38 @@ import type {
 } from './types';
 
 const DEFAULT_MUSIC_ANALYSER: Required<AudioAnalyserConfig> = {
-  fftSize: 256,
-  smoothingTimeConstant: 0.85,
+  fftSize: 1024,
+  smoothingTimeConstant: 0.7,
 };
 
 const DEFAULT_MIC_ANALYSER: Required<AudioAnalyserConfig> = {
-  fftSize: 256,
+  fftSize: 1024,
   smoothingTimeConstant: 0.8,
 };
 
-const DEFAULT_CLASSIC_RANGES: Record<keyof Omit<Bands, 'overall'>, BandRange> = {
-  bass: { from: 0, to: 0.08 },
-  mid: { from: 0.08, to: 0.4 },
-  high: { from: 0.4, to: 1 },
+type ClassicBand = keyof Omit<Bands, 'overall'>;
+
+/**
+ * Default bass/mid/high split, in Hz. Resolved against the context's sample
+ * rate, so a 96 kHz device covers the same frequencies as a 44.1 kHz one.
+ * `high` stops at 16 kHz: compressed audio carries little above it.
+ */
+const DEFAULT_CLASSIC_HZ: Record<ClassicBand, [number, number]> = {
+  bass: [0, 250],
+  mid: [250, 4000],
+  high: [4000, 16000],
 };
+
+/** Sample rate assumed for the default ranges until an AudioContext exists. */
+const ASSUMED_SAMPLE_RATE = 48000;
+
+function defaultRange(name: ClassicBand, sampleRate: number): BandRange {
+  const nyquist = sampleRate / 2;
+  const [fromHz, toHz] = DEFAULT_CLASSIC_HZ[name];
+  const to = Math.min(1, toHz / nyquist);
+  const from = Math.min(fromHz / nyquist, to * (1 - Number.EPSILON));
+  return { from, to };
+}
 
 const ZERO: Bands = { bass: 0, mid: 0, high: 0, overall: 0 };
 
@@ -75,9 +93,7 @@ function normalizeAnalyserConfig(
   return { fftSize, smoothingTimeConstant };
 }
 
-function normalizeRange(name: string, range: BandRange | undefined): BandRange {
-  const normalized = range ?? DEFAULT_CLASSIC_RANGES[name as keyof typeof DEFAULT_CLASSIC_RANGES];
-
+function normalizeRange(name: string, normalized: BandRange): BandRange {
   if (
     typeof normalized?.from !== 'number' ||
     typeof normalized?.to !== 'number' ||
@@ -97,14 +113,26 @@ function normalizeRange(name: string, range: BandRange | undefined): BandRange {
   return normalized;
 }
 
+/** `null` keeps a band on its default range in Hz. */
+type ClassicRanges = Record<ClassicBand, BandRange | null>;
+
 function normalizeClassicRanges(
   ranges: ClassicBandRanges | undefined,
-): Record<keyof Omit<Bands, 'overall'>, BandRange> {
-  return {
-    bass: normalizeRange('bass', ranges?.bass),
-    mid: normalizeRange('mid', ranges?.mid),
-    high: normalizeRange('high', ranges?.high),
+  current: ClassicRanges = { bass: null, mid: null, high: null },
+): ClassicRanges {
+  const pick = (name: ClassicBand) => {
+    const range = ranges?.[name];
+    return range == null ? current[name] : normalizeRange(name, range);
   };
+  return { bass: pick('bass'), mid: pick('mid'), high: pick('high') };
+}
+
+function resolveClassicRanges(
+  ranges: ClassicRanges,
+  sampleRate: number,
+): Record<ClassicBand, BandRange> {
+  const resolve = (name: ClassicBand) => ranges[name] ?? defaultRange(name, sampleRate);
+  return { bass: resolve('bass'), mid: resolve('mid'), high: resolve('high') };
 }
 
 function normalizeCustomBands(customBands: CustomBandRanges | undefined): CustomBandRanges {
@@ -136,7 +164,7 @@ function fillFrequencyData(
 
 function computeBands(
   data: Uint8Array<ArrayBuffer>,
-  ranges: Record<keyof Omit<Bands, 'overall'>, BandRange>,
+  ranges: Record<ClassicBand, BandRange>,
 ): Bands {
   const bass = getRangeValue(data, ranges.bass);
   const mid = getRangeValue(data, ranges.mid);
@@ -171,7 +199,9 @@ export class AudioBands {
   private options: AudioBandsOptions;
   private musicConfig: Required<AudioAnalyserConfig>;
   private micConfig: Required<AudioAnalyserConfig>;
-  private classicRanges: Record<keyof Omit<Bands, 'overall'>, BandRange>;
+  private classicRanges: ClassicRanges;
+  private resolvedRanges: { sampleRate: number; ranges: Record<ClassicBand, BandRange> } | null =
+    null;
   private readonly customBandRanges: CustomBandRanges;
 
   private readonly state: AudioBandsState = {
@@ -219,16 +249,28 @@ export class AudioBands {
    * out keep their current range. Invalid input throws and changes nothing.
    */
   setBandRanges(ranges: ClassicBandRanges): void {
-    this.classicRanges = {
-      bass: normalizeRange('bass', ranges.bass ?? this.classicRanges.bass),
-      mid: normalizeRange('mid', ranges.mid ?? this.classicRanges.mid),
-      high: normalizeRange('high', ranges.high ?? this.classicRanges.high),
-    };
+    this.classicRanges = normalizeClassicRanges(ranges, this.classicRanges);
+    this.resolvedRanges = null;
   }
 
+  /**
+   * Returns a copy of the current ranges. Bands on their default range are
+   * resolved against the context's sample rate, or 48 kHz before one exists.
+   */
   getBandRanges(): Required<ClassicBandRanges> {
-    const { bass, mid, high } = this.classicRanges;
+    const { bass, mid, high } = this.currentRanges();
     return { bass: { ...bass }, mid: { ...mid }, high: { ...high } };
+  }
+
+  private currentRanges(): Record<ClassicBand, BandRange> {
+    const sampleRate = this.ctx?.sampleRate ?? ASSUMED_SAMPLE_RATE;
+    if (this.resolvedRanges?.sampleRate !== sampleRate) {
+      this.resolvedRanges = {
+        sampleRate,
+        ranges: resolveClassicRanges(this.classicRanges, sampleRate),
+      };
+    }
+    return this.resolvedRanges.ranges;
   }
 
   /**
@@ -495,7 +537,7 @@ export class AudioBands {
   getBands(source: AudioSource = 'music'): Bands {
     const data = this.readFrequencyData(source);
     if (!data) return { ...ZERO };
-    return computeBands(data, this.classicRanges);
+    return computeBands(data, this.currentRanges());
   }
 
   getFftData(source: AudioSource = 'music'): Uint8Array<ArrayBuffer> | null {
@@ -511,7 +553,7 @@ export class AudioBands {
     const waveform = this.readWaveformData(source);
 
     return {
-      bands: fft ? computeBands(fft, this.classicRanges) : { ...ZERO },
+      bands: fft ? computeBands(fft, this.currentRanges()) : { ...ZERO },
       customBands: fft
         ? computeCustomBands(fft, this.customBandRanges)
         : computeCustomBands(new Uint8Array(1) as Uint8Array<ArrayBuffer>, this.customBandRanges),

@@ -12,6 +12,7 @@ declare global {
       streams: MediaStream[];
       hook: UseAudioBandsReturn | null;
       loaded: boolean;
+      tone: (frequency: number) => string;
     };
   }
 }
@@ -32,7 +33,7 @@ navigator.mediaDevices.getUserMedia = async (constraints) => {
   return stream;
 };
 
-function toneUrl() {
+function toneUrl(frequency = 440) {
   const sampleRate = 48000;
   const samples = sampleRate * 2;
   const buffer = new ArrayBuffer(44 + samples * 2);
@@ -54,14 +55,14 @@ function toneUrl() {
   writeText(36, 'data');
   view.setUint32(40, samples * 2, true);
   for (let i = 0; i < samples; i++) {
-    view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * 440 * i / sampleRate) * 16000, true);
+    view.setInt16(44 + i * 2, Math.sin(2 * Math.PI * frequency * i / sampleRate) * 16000, true);
   }
   return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
 }
 
 const core = new AudioBands();
 core.setLoop(true);
-window.audioTest = { core, contexts, streams, hook: null, loaded: false };
+window.audioTest = { core, contexts, streams, hook: null, loaded: false, tone: toneUrl };
 const url = toneUrl();
 const loading = core.load(url).then(() => { window.audioTest.loaded = true; });
 window.addEventListener('pagehide', () => {

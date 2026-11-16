@@ -383,17 +383,18 @@ describe('AudioBands', () => {
     const audio = new AudioBands();
     await audio.load('/track.mp3');
     const analyser = MockAudioContext.instances[0].analysers[0];
-    const data = new Uint8Array(128);
-    data.fill(255, 0, 32);
+    const data = new Uint8Array(512);
+    data.fill(255, 0, 128);
     analyser.frequencyData = data as Uint8Array<ArrayBuffer>;
 
-    expect(audio.getBands().mid).toBeCloseTo((255 * 22) / 41 / 255, 4);
+    // Default mid at 48 kHz, 512 bins of 46.875 Hz: 250–4000 Hz is bins 5–85.
+    expect(audio.getBands().mid).toBeCloseTo(1, 4);
 
     audio.setBandRanges({ bass: { from: 0, to: 0.25 }, mid: { from: 0.25, to: 0.5 } });
     expect(audio.getBandRanges()).toEqual({
       bass: { from: 0, to: 0.25 },
       mid: { from: 0.25, to: 0.5 },
-      high: { from: 0.4, to: 1 },
+      high: { from: 4000 / 24000, to: 16000 / 24000 },
     });
     expect(audio.getBands().bass).toBeCloseTo(1, 4);
     expect(audio.getBands().mid).toBeCloseTo(0, 4);
@@ -410,6 +411,42 @@ describe('AudioBands', () => {
     audio.destroy();
   });
 
+  it('uses music-friendly analyser defaults', async () => {
+    mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
+    const audio = new AudioBands();
+    expect(audio.getAnalyserConfig()).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.7 });
+    expect(audio.getAnalyserConfig('mic')).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.8 });
+    audio.destroy();
+  });
+
+  it('resolves the default band ranges in Hz against the sample rate', async () => {
+    const audio = new AudioBands({ bandRanges: { bass: { from: 0, to: 0.1 } } });
+    // Before a context exists the defaults assume 48 kHz.
+    expect(audio.getBandRanges()).toEqual({
+      bass: { from: 0, to: 0.1 },
+      mid: { from: 250 / 24000, to: 4000 / 24000 },
+      high: { from: 4000 / 24000, to: 16000 / 24000 },
+    });
+
+    await audio.load('/track.mp3');
+    const ctx = MockAudioContext.instances[0];
+    const analyser = ctx.analysers[0];
+    const data = new Uint8Array(512);
+    // 48 kHz: 4000–16000 Hz is bins 85–341.
+    data.fill(255, 85, 341);
+    analyser.frequencyData = data as Uint8Array<ArrayBuffer>;
+    expect(audio.getBands().high).toBeCloseTo(1, 4);
+    expect(audio.getBands().mid).toBeCloseTo(0, 4);
+
+    // At 96 kHz the same Hz land on half as many bins; a user range stays a fraction.
+    ctx.sampleRate = 96000;
+    expect(audio.getBandRanges().high).toEqual({ from: 4000 / 48000, to: 16000 / 48000 });
+    expect(audio.getBandRanges().bass).toEqual({ from: 0, to: 0.1 });
+    // High is now bins 42–170, and only 85–170 are lit.
+    expect(audio.getBands().high).toBeCloseTo((170 - 85) / (170 - 42), 4);
+    audio.destroy();
+  });
+
   it('changes analyser settings live and replaces buffers when fftSize changes', async () => {
     mediaDevices.getUserMedia.mockResolvedValue(new MockMediaStream());
     const audio = new AudioBands();
@@ -422,24 +459,24 @@ describe('AudioBands', () => {
     const ctx = MockAudioContext.instances[0];
     const music = ctx.analysers[0];
     expect(music.smoothingTimeConstant).toBe(0.2);
-    expect(music.fftSize).toBe(256);
+    expect(music.fftSize).toBe(1024);
 
     const before = audio.snapshot().fft;
-    expect(before).toHaveLength(128);
+    expect(before).toHaveLength(512);
 
-    audio.setAnalyserConfig('music', { fftSize: 1024 });
-    expect(music.fftSize).toBe(1024);
+    audio.setAnalyserConfig('music', { fftSize: 2048 });
+    expect(music.fftSize).toBe(2048);
     expect(music.smoothingTimeConstant).toBe(0.2);
-    expect(audio.getAnalyserConfig()).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.2 });
+    expect(audio.getAnalyserConfig()).toEqual({ fftSize: 2048, smoothingTimeConstant: 0.2 });
     const after = audio.snapshot();
-    expect(after.fft).toHaveLength(512);
-    expect(after.waveform).toHaveLength(1024);
+    expect(after.fft).toHaveLength(1024);
+    expect(after.waveform).toHaveLength(2048);
     expect(after.fft).not.toBe(before);
 
     expect(() => audio.setAnalyserConfig('music', { fftSize: 1000, smoothingTimeConstant: 0.5 })).toThrow(
       AudioBandsError,
     );
-    expect(audio.getAnalyserConfig('music')).toEqual({ fftSize: 1024, smoothingTimeConstant: 0.2 });
+    expect(audio.getAnalyserConfig('music')).toEqual({ fftSize: 2048, smoothingTimeConstant: 0.2 });
     expect(music.smoothingTimeConstant).toBe(0.2);
 
     audio.setAnalyserConfig('mic', { fftSize: 64, smoothingTimeConstant: 0.1 });
