@@ -44,18 +44,24 @@ export const tracks = [
 export type Input = 'Line' | 'Mic';
 
 // Response is the meter's ballistics: how fast the reading follows the signal.
-export const responses = { Fast: 0.6, Med: 0.85, Slow: 0.95 } as const;
+// Med is the library's default for music (0.7).
+export const responses = { Fast: 0.5, Med: 0.7, Slow: 0.9 } as const;
 export type Response = keyof typeof responses;
 
 // Resolution is the analyser's fftSize, printed as the bins it yields.
 export const resolutions = { '128': 256, '512': 1024, '2048': 4096 } as const;
 export type Resolution = keyof typeof resolutions;
 
-// Crossover knobs turn on a log scale, as on hardware.
+// Crossover knobs turn on a log scale, as on hardware. They start on the
+// library's default edges, 250 Hz and 4 kHz.
 export const crossovers = {
-  low: { min: 60, max: 3000, initial: 400 },
-  high: { min: 500, max: 16000, initial: 3500 },
+  low: { min: 60, max: 3000, initial: 250 },
+  high: { min: 500, max: 16000, initial: 4000 },
 } as const;
+
+// The top of the high band, as in the library's default: compressed audio
+// carries little above 16 kHz, and averaging up to Nyquist would flatten it.
+export const HIGH_TOP_HZ = 16000;
 export const positionToHz = (p: number, { min, max }: { min: number; max: number }) =>
   min * Math.pow(max / min, p / 100);
 
@@ -89,7 +95,8 @@ export function useDeck() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [response, setResponseState] = useState<Response>('Med');
-  const [resolution, setResolutionState] = useState<Resolution>('128');
+  // 512 bins is the library's default fftSize (1024).
+  const [resolution, setResolutionState] = useState<Resolution>('512');
   const [xLow, setXLow] = useState<number>(crossovers.low.initial);
   const [xHigh, setXHigh] = useState<number>(crossovers.high.initial);
   const [sampleRate, setSampleRate] = useState(48000);
@@ -145,7 +152,8 @@ export function useDeck() {
   useEffect(() => {
     const low = Math.min(xLow / nyquist + 1e-9, 0.98);
     const high = Math.min(Math.max(xHigh / nyquist + 1e-9, low + 0.001), 0.99);
-    setBandRanges({ bass: { from: 0, to: low }, mid: { from: low, to: high }, high: { from: high, to: 1 } });
+    const top = Math.max(Math.min(1, HIGH_TOP_HZ / nyquist), high + 0.001);
+    setBandRanges({ bass: { from: 0, to: low }, mid: { from: low, to: high }, high: { from: high, to: top } });
   }, [xLow, xHigh, nyquist, setBandRanges]);
 
   const setInput = useCallback(

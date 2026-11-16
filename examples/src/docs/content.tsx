@@ -26,19 +26,19 @@ const frame = audio.snapshot('mic');
 // When the user stops:
 audio.disableMic();`;
 
-export const liveCode = `// Move the bass/mid edge to ~375 Hz without stopping playback.
+export const liveCode = `// Move the bass/mid edge to ~120 Hz without stopping playback.
 const nyquist = audio.getSampleRate() / 2;
 audio.setBandRanges({
-  bass: { from: 0, to: 375 / nyquist },
-  mid: { from: 375 / nyquist, to: 0.4 },
+  bass: { from: 0, to: 120 / nyquist },
+  mid: { from: 120 / nyquist, to: 4000 / nyquist },
 });
 
 // Slower, finer analysis for the music source.
 audio.setAnalyserConfig('music', { fftSize: 2048, smoothingTimeConstant: 0.95 });`;
 
 export const optionsCode = `const audio = new AudioBands({
-  music: { fftSize: 512, smoothingTimeConstant: 0.7 },
-  mic: { fftSize: 256, smoothingTimeConstant: 0.8 },
+  music: { fftSize: 2048, smoothingTimeConstant: 0.6 },
+  mic: { fftSize: 512, smoothingTimeConstant: 0.8 },
   customBands: {
     presence: { from: 0.25, to: 0.5 },
     air: { from: 0.5, to: 1 },
@@ -74,13 +74,13 @@ export const methods: Method[] = [
 export type Option = { name: string; type: string; fallback: string; range: string };
 
 export const options: Option[] = [
-  { name: 'music.fftSize', type: 'number', fallback: '256', range: 'power of two, 32–32768' },
-  { name: 'music.smoothingTimeConstant', type: 'number', fallback: '0.85', range: '0–1' },
-  { name: 'mic.fftSize', type: 'number', fallback: '256', range: 'power of two, 32–32768' },
+  { name: 'music.fftSize', type: 'number', fallback: '1024', range: 'power of two, 32–32768' },
+  { name: 'music.smoothingTimeConstant', type: 'number', fallback: '0.7', range: '0–1' },
+  { name: 'mic.fftSize', type: 'number', fallback: '1024', range: 'power of two, 32–32768' },
   { name: 'mic.smoothingTimeConstant', type: 'number', fallback: '0.8', range: '0–1' },
-  { name: 'bandRanges.bass', type: '{ from, to }', fallback: '0 – 0.08', range: '0 ≤ from < to ≤ 1' },
-  { name: 'bandRanges.mid', type: '{ from, to }', fallback: '0.08 – 0.4', range: '0 ≤ from < to ≤ 1' },
-  { name: 'bandRanges.high', type: '{ from, to }', fallback: '0.4 – 1', range: '0 ≤ from < to ≤ 1' },
+  { name: 'bandRanges.bass', type: '{ from, to }', fallback: '0 – 250 Hz', range: '0 ≤ from < to ≤ 1' },
+  { name: 'bandRanges.mid', type: '{ from, to }', fallback: '250 – 4000 Hz', range: '0 ≤ from < to ≤ 1' },
+  { name: 'bandRanges.high', type: '{ from, to }', fallback: '4000 – 16000 Hz', range: '0 ≤ from < to ≤ 1' },
   { name: 'customBands', type: 'Record<string, { from, to }>', fallback: '{}', range: '0 ≤ from < to ≤ 1' },
   { name: 'on…', type: 'callbacks', fallback: '—', range: 'Error, LoadError, PlaybackError, MicError, StateChange, Play, Pause, MicStart, MicStop' },
 ];

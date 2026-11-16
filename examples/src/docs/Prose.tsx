@@ -184,6 +184,12 @@ export function Prose() {
           <code>getSampleRate() / 2</code> gives Hz; each edge snaps to a whole bin, so more bins give finer edges. A new{' '}
           <code>fftSize</code> replaces the buffers <code>snapshot()</code> returns.
         </p>
+        <p>
+          <span className="d-since">New in 0.8</span> The default ranges are set in Hz: bass 0–250, mid 250–4000 and
+          high 4000–16000, at whatever sample rate the device runs. The defaults also moved to <code>fftSize</code>{' '}
+          1024 and, for music, smoothing 0.7, so the bands follow the music more closely. Ranges you pass are still
+          shares of the spectrum.
+        </p>
       </section>
 
       <section id="api" className="d-wide">
